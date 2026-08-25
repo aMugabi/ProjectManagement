@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Priority, Project, Status, Task } from '../types';
+import type { Priority, Project, Recurring, Status, Task } from '../types';
 import { buildSeedTasks, PROJECTS } from '../data/seed';
 import { advanceRecurrence } from '../lib/date';
 
@@ -57,6 +57,8 @@ interface TaskStore {
   setStatus: (id: string, status: Status) => void;
   setPriority: (id: string, priority: Priority) => void;
   setProject: (id: string, project: string) => void;
+  setDueDate: (id: string, dueDate: string) => void;
+  setRecurring: (id: string, recurring: Recurring) => void;
   setTitle: (id: string, title: string) => void;
   setNotes: (id: string, notes: string) => void;
   addSubtask: (id: string, text: string) => void;
@@ -115,6 +117,12 @@ export const useTaskStore = create<TaskStore>()(
 
       setProject: (id, project) =>
         set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, project } : t)) })),
+
+      setDueDate: (id, dueDate) =>
+        set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, dueDate } : t)) })),
+
+      setRecurring: (id, recurring) =>
+        set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, recurring } : t)) })),
 
       setTitle: (id, title) =>
         set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, title } : t)) })),

@@ -110,6 +110,22 @@
   white-space: normal;
 }
 
+.dueEditRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.dateInput {
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-size: 12.5px;
+  font-family: var(--font-mono);
+  background: var(--surface);
+  color: var(--text);
+}
+
 .select {
   border: 1px solid var(--border-strong);
   border-radius: 8px;

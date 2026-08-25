@@ -1,5 +1,5 @@
 import { useEffect, useRef, type KeyboardEvent } from 'react';
-import type { Priority, Status } from '../types';
+import type { Priority, Recurring, Status } from '../types';
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { projectById, depTitles, subtaskProgress, isDepBlocked } from '../lib/selectors';
@@ -20,11 +20,12 @@ const PRIO_OPTIONS: { value: Priority; label: string; color: string }[] = [
   { value: 'low', label: 'Low', color: 'var(--prio-low)' },
 ];
 
-const RECUR_LABEL: Record<string, string> = {
-  weekly: 'every week',
-  monthly: 'every month',
-  yearly: 'every year',
-};
+const RECUR_OPTIONS: { value: string; label: string }[] = [
+  { value: 'none', label: 'Does not repeat' },
+  { value: 'weekly', label: 'Every week' },
+  { value: 'monthly', label: 'Every month' },
+  { value: 'yearly', label: 'Every year' },
+];
 
 export function Drawer() {
   const openId = useUiStore((st) => st.openId);
@@ -38,6 +39,8 @@ export function Drawer() {
     setStatus,
     setPriority,
     setProject,
+    setDueDate,
+    setRecurring,
     setTitle,
     setNotes,
     addSubtask,
@@ -165,16 +168,37 @@ export function Drawer() {
             </div>
 
             <span className={s.fieldLabel}>Due</span>
-            <span className={s.fieldValue}>
-              {formatLongDateShortWeekday(isoToDate(task.dueDate))}  ·  {meta.label}
-            </span>
+            <div className={s.dueEditRow}>
+              <input
+                type="date"
+                className={s.dateInput}
+                value={task.dueDate}
+                onChange={(e) => {
+                  if (e.target.value) setDueDate(task.id, e.target.value);
+                }}
+              />
+              <span className={s.fieldValueSans}>{meta.label}</span>
+            </div>
 
             <span className={s.fieldLabel}>Repeats</span>
-            <span className={s.fieldValueSans}>
-              {task.recurring
-                ? `${RECUR_LABEL[task.recurring]} · next ${formatLongDateShortWeekday(isoToDate(advanceRecurrence(task.dueDate, task.recurring)))}`
-                : 'does not repeat'}
-            </span>
+            <div className={s.dueEditRow}>
+              <select
+                className={s.select}
+                value={task.recurring ?? 'none'}
+                onChange={(e) => setRecurring(task.id, e.target.value === 'none' ? null : (e.target.value as Recurring))}
+              >
+                {RECUR_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              {task.recurring && (
+                <span className={s.fieldValueSans}>
+                  next {formatLongDateShortWeekday(isoToDate(advanceRecurrence(task.dueDate, task.recurring)))}
+                </span>
+              )}
+            </div>
 
             <span className={s.fieldLabel}>Depends on</span>
             <div className={s.depsBox}>
