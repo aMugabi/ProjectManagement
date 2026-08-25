@@ -1,0 +1,75 @@
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--canvas);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dialog {
+  width: 100%;
+  max-width: 320px;
+  margin: 0 24px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  box-shadow: 0 26px 60px rgba(28, 27, 25, 0.12);
+  padding: 28px 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--accent);
+  margin-bottom: 14px;
+}
+
+.title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 20px;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  padding: 9px 12px;
+  font-size: 13.5px;
+  background: var(--surface-raised);
+  color: var(--text);
+  text-align: center;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.error {
+  color: var(--overdue-text);
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.button {
+  width: 100%;
+  margin-top: 14px;
+  border: none;
+  border-radius: 9px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--accent);
+  color: var(--surface);
+}
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

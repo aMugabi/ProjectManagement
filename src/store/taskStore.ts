@@ -134,6 +134,6 @@ export const useTaskStore = create<TaskStore>()(
           };
         }),
     }),
-    { name: 'ledger-tasks' },
+    { name: 'ledger-tasks-v2' },
   ),
 );
