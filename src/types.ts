@@ -31,6 +31,11 @@ export interface Project {
   color: string;
 }
 
+export interface Workspace {
+  id: string;
+  name: string;
+}
+
 export type Screen = 'dashboard' | 'tasks' | 'timeline';
 export type DashLayout = 'focus' | 'portfolio';
 export type TaskView = 'list' | 'board';

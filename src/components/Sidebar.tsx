@@ -12,7 +12,17 @@ const NAV_ITEMS = [
 ] as const;
 
 export function Sidebar() {
-  const { tasks, projects, addProject, renameProject } = useTaskStore();
+  const {
+    tasks,
+    projects,
+    addProject,
+    renameProject,
+    workspaces,
+    activeWorkspaceId,
+    addWorkspace,
+    renameWorkspace,
+    setActiveWorkspace,
+  } = useTaskStore();
   const navigate = useNavigate();
   const location = useLocation();
   const { project: projectFilter } = useFilters();
@@ -24,6 +34,14 @@ export function Sidebar() {
   const [renameDraft, setRenameDraft] = useState('');
   const [addingProject, setAddingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
+
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const [renamingWorkspaceId, setRenamingWorkspaceId] = useState<string | null>(null);
+  const [renameWorkspaceDraft, setRenameWorkspaceDraft] = useState('');
+  const [addingWorkspace, setAddingWorkspace] = useState(false);
+  const [newWorkspaceName, setNewWorkspaceName] = useState('');
+
+  const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
 
   const currentScreen = location.pathname.replace('/', '') || 'dashboard';
   const openCount = tasks.filter((t) => t.status !== 'done').length;
@@ -70,6 +88,48 @@ export function Sidebar() {
     if (e.key === 'Escape') {
       setAddingProject(false);
       setNewProjectName('');
+    }
+  }
+
+  function switchWorkspace(id: string) {
+    setActiveWorkspace(id);
+    setWorkspaceMenuOpen(false);
+    navigate('/dashboard');
+    closeSidebar();
+  }
+
+  function startRenameWorkspace(id: string, name: string) {
+    setRenamingWorkspaceId(id);
+    setRenameWorkspaceDraft(name);
+  }
+
+  function commitRenameWorkspace() {
+    const trimmed = renameWorkspaceDraft.trim();
+    if (renamingWorkspaceId && trimmed) renameWorkspace(renamingWorkspaceId, trimmed);
+    setRenamingWorkspaceId(null);
+    setRenameWorkspaceDraft('');
+  }
+
+  function handleRenameWorkspaceKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') e.currentTarget.blur();
+    if (e.key === 'Escape') {
+      setRenamingWorkspaceId(null);
+      setRenameWorkspaceDraft('');
+    }
+  }
+
+  function commitAddWorkspace() {
+    const trimmed = newWorkspaceName.trim();
+    if (trimmed) addWorkspace(trimmed);
+    setAddingWorkspace(false);
+    setNewWorkspaceName('');
+  }
+
+  function handleAddWorkspaceKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') e.currentTarget.blur();
+    if (e.key === 'Escape') {
+      setAddingWorkspace(false);
+      setNewWorkspaceName('');
     }
   }
 
@@ -188,9 +248,79 @@ export function Sidebar() {
       </div>
 
       <div className={s.spacer} />
-      <div className={s.footer}>
-        <div className={s.avatar}>JM</div>
-        <span className={s.footerLabel}>Solo workspace</span>
+      <div className={s.footerWrap}>
+        {workspaceMenuOpen && (
+          <>
+            <div className={s.menuScrim} onClick={() => setWorkspaceMenuOpen(false)} aria-hidden="true" />
+            <div className={s.workspaceMenu}>
+              <div className={s.sectionLabel}>Workspaces</div>
+              {workspaces.map((w) => {
+                const isRenaming = renamingWorkspaceId === w.id;
+                const isActive = w.id === activeWorkspaceId;
+                return (
+                  <div key={w.id} className={s.projectRowWrap}>
+                    {isRenaming ? (
+                      <div className={s.navRow}>
+                        <input
+                          className={s.renameInput}
+                          autoFocus
+                          value={renameWorkspaceDraft}
+                          onChange={(e) => setRenameWorkspaceDraft(e.target.value)}
+                          onBlur={commitRenameWorkspace}
+                          onKeyDown={handleRenameWorkspaceKeyDown}
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className={`${s.navRow} ${isActive ? s.active : ''}`}
+                        onClick={() => switchWorkspace(w.id)}
+                      >
+                        <span className={s.label}>{w.name}</span>
+                        {isActive && <span className={s.count}>current</span>}
+                      </button>
+                    )}
+                    {!isRenaming && (
+                      <button
+                        type="button"
+                        className={s.editProjectBtn}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startRenameWorkspace(w.id, w.name);
+                        }}
+                        aria-label={`Rename "${w.name}"`}
+                      >
+                        ✎
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {addingWorkspace ? (
+                <div className={s.navRow}>
+                  <input
+                    className={s.renameInput}
+                    autoFocus
+                    placeholder="Workspace name"
+                    value={newWorkspaceName}
+                    onChange={(e) => setNewWorkspaceName(e.target.value)}
+                    onBlur={commitAddWorkspace}
+                    onKeyDown={handleAddWorkspaceKeyDown}
+                  />
+                </div>
+              ) : (
+                <button type="button" className={s.addWorkspaceBtn} onClick={() => setAddingWorkspace(true)}>
+                  + New workspace
+                </button>
+              )}
+            </div>
+          </>
+        )}
+        <button type="button" className={s.footer} onClick={() => setWorkspaceMenuOpen((v) => !v)}>
+          <div className={s.avatar}>JM</div>
+          <span className={s.footerLabel}>{activeWorkspace?.name ?? 'Workspace'}</span>
+          <span className={s.footerChevron}>{workspaceMenuOpen ? '▾' : '▴'}</span>
+        </button>
       </div>
       </aside>
     </>

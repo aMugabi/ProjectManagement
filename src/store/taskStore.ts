@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Priority, Project, Recurring, Status, Task } from '../types';
+import type { Priority, Project, Recurring, Status, Task, Workspace } from '../types';
 import { buildSeedTasks, PROJECTS } from '../data/seed';
 import { advanceRecurrence } from '../lib/date';
 
@@ -17,13 +17,13 @@ const PROJECT_COLORS = [
   '#4b6b94',
 ];
 
-function slugifyProjectName(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'project';
+function slugify(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'item';
 }
 
-function uniqueProjectId(name: string, existing: Project[]): string {
-  const base = slugifyProjectName(name);
-  const ids = new Set(existing.map((p) => p.id));
+function uniqueId(name: string, existingIds: Iterable<string>): string {
+  const ids = new Set(existingIds);
+  const base = slugify(name);
   if (!ids.has(base)) return base;
   let i = 2;
   while (ids.has(`${base}-${i}`)) i++;
@@ -48,9 +48,21 @@ function completeTask(task: Task): Task {
   return { ...task, status: 'done' };
 }
 
+/** Data for a workspace that isn't currently active — the active workspace's data lives in the top-level tasks/projects fields. */
+interface WorkspaceSnapshot {
+  projects: Project[];
+  tasks: Task[];
+}
+
 interface TaskStore {
   tasks: Task[];
   projects: Project[];
+  workspaces: Workspace[];
+  activeWorkspaceId: string;
+  workspaceData: Record<string, WorkspaceSnapshot>;
+  addWorkspace: (name: string) => void;
+  renameWorkspace: (id: string, name: string) => void;
+  setActiveWorkspace: (id: string) => void;
   addProject: (name: string) => void;
   renameProject: (id: string, name: string) => void;
   toggleDone: (id: string) => void;
@@ -76,13 +88,57 @@ export const useTaskStore = create<TaskStore>()(
     (set) => ({
       tasks: buildSeedTasks(),
       projects: PROJECTS,
+      workspaces: [{ id: 'default', name: 'My Workspace' }],
+      activeWorkspaceId: 'default',
+      workspaceData: {},
+
+      addWorkspace: (name) =>
+        set((s) => {
+          const trimmed = name.trim();
+          if (!trimmed) return s;
+          const id = uniqueId(
+            trimmed,
+            s.workspaces.map((w) => w.id),
+          );
+          return {
+            workspaces: [...s.workspaces, { id, name: trimmed }],
+            workspaceData: { ...s.workspaceData, [id]: { projects: [], tasks: [] } },
+          };
+        }),
+
+      renameWorkspace: (id, name) =>
+        set((s) => {
+          const trimmed = name.trim();
+          if (!trimmed) return s;
+          return { workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, name: trimmed } : w)) };
+        }),
+
+      // Swaps the top-level tasks/projects for another workspace's data, stashing the outgoing
+      // workspace's data in workspaceData so it's the only place a non-active workspace lives.
+      setActiveWorkspace: (id) =>
+        set((s) => {
+          if (id === s.activeWorkspaceId || !s.workspaces.some((w) => w.id === id)) return s;
+          const incoming = s.workspaceData[id] ?? { projects: [], tasks: [] };
+          const workspaceData = { ...s.workspaceData };
+          delete workspaceData[id];
+          workspaceData[s.activeWorkspaceId] = { projects: s.projects, tasks: s.tasks };
+          return {
+            activeWorkspaceId: id,
+            projects: incoming.projects,
+            tasks: incoming.tasks,
+            workspaceData,
+          };
+        }),
 
       addProject: (name) =>
         set((s) => {
           const trimmed = name.trim();
           if (!trimmed) return s;
           const project: Project = {
-            id: uniqueProjectId(trimmed, s.projects),
+            id: uniqueId(
+              trimmed,
+              s.projects.map((p) => p.id),
+            ),
             name: trimmed,
             color: nextProjectColor(s.projects),
           };
