@@ -37,6 +37,7 @@ export function Drawer() {
     toggleDone,
     setStatus,
     setPriority,
+    setProject,
     setTitle,
     setNotes,
     addSubtask,
@@ -96,7 +97,18 @@ export function Drawer() {
         <div className={s.header}>
           <div className={s.metaRow}>
             <span className={s.metaDot} style={{ background: project.color }} />
-            <span className={s.metaProject}>{project.name}</span>
+            <select
+              className={s.metaProjectSelect}
+              value={task.project}
+              onChange={(e) => setProject(task.id, e.target.value)}
+              aria-label="Project"
+            >
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
             <div className={s.metaSpacer} />
             <button type="button" className={s.closeBtn} onClick={closeDrawer} aria-label="Close">
               ×

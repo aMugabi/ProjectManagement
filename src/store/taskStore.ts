@@ -56,6 +56,7 @@ interface TaskStore {
   toggleDone: (id: string) => void;
   setStatus: (id: string, status: Status) => void;
   setPriority: (id: string, priority: Priority) => void;
+  setProject: (id: string, project: string) => void;
   setTitle: (id: string, title: string) => void;
   setNotes: (id: string, notes: string) => void;
   addSubtask: (id: string, text: string) => void;
@@ -111,6 +112,9 @@ export const useTaskStore = create<TaskStore>()(
 
       setPriority: (id, priority) =>
         set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, priority } : t)) })),
+
+      setProject: (id, project) =>
+        set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, project } : t)) })),
 
       setTitle: (id, title) =>
         set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, title } : t)) })),

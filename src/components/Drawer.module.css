@@ -39,6 +39,20 @@
   font-size: 12px;
   color: var(--text-muted);
 }
+.metaProjectSelect {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 3px 5px;
+  margin-left: -5px;
+  font-size: 12px;
+  font-family: inherit;
+  background: transparent;
+  color: var(--text-muted);
+}
+.metaProjectSelect:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-raised);
+}
 .metaSpacer {
   flex: 1;
 }

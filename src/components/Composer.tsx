@@ -2,6 +2,7 @@ import { useEffect, useRef, type KeyboardEvent } from 'react';
 import type { Priority } from '../types';
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
+import { useFilters } from '../lib/useFilters';
 import { addDays, dateToIso, today } from '../lib/date';
 import s from './Composer.module.css';
 
@@ -31,10 +32,23 @@ export function Composer() {
   const draftDueOffset = useUiStore((st) => st.draftDueOffset);
   const setDraftDueOffset = useUiStore((st) => st.setDraftDueOffset);
   const { projects, addTask } = useTaskStore();
+  const { project: projectFilter } = useFilters();
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (composing) inputRef.current?.focus();
+  }, [composing]);
+
+  // Opening the composer while a project view is filtered pre-selects that project.
+  useEffect(() => {
+    if (!composing) return;
+    if (projectFilter && projects.some((p) => p.id === projectFilter)) {
+      setDraftProject(projectFilter);
+    } else if (!projects.some((p) => p.id === draftProject) && projects.length > 0) {
+      setDraftProject(projects[0].id);
+    }
+    // Only re-run when the composer opens — not on every keystroke of draftProject/projects.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [composing]);
 
   useEffect(() => {
