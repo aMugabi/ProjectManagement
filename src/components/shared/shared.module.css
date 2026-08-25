@@ -1,0 +1,58 @@
+.checkbox {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  line-height: 1;
+  border: 1px solid var(--border-check);
+  background: var(--surface);
+}
+.checkbox.done {
+  border-color: var(--done);
+  background: var(--done);
+  color: var(--surface);
+}
+
+.subCheckbox {
+  composes: checkbox;
+  width: 16px;
+  height: 16px;
+  font-size: 9.5px;
+}
+
+.pill {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.duePill {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.progressTrack {
+  height: 5px;
+  border-radius: 99px;
+  background: var(--track);
+  overflow: hidden;
+}
+.progressTrack.thin {
+  height: 4px;
+}
+.progressFill {
+  height: 100%;
+  border-radius: 99px;
+}

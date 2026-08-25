@@ -1,0 +1,126 @@
+.header {
+  flex: none;
+  padding: 18px 28px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--canvas);
+}
+
+.row1 {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.left {
+  flex: 1;
+  min-width: 0;
+}
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+}
+.title {
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.search {
+  width: 230px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  padding: 7px 11px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.search .glyph {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.search input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  width: 100%;
+  color: var(--text);
+}
+.search input::placeholder {
+  color: var(--text-faint);
+}
+
+.viewSwitch {
+  background: var(--surface-alt);
+  border-radius: 9px;
+  padding: 2px;
+  display: flex;
+  gap: 2px;
+}
+.viewTab {
+  border-radius: 7px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  white-space: nowrap;
+  border: none;
+  background: transparent;
+  color: #7a766f;
+  font-weight: 500;
+}
+.viewTab.selected {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(28, 27, 25, 0.06);
+}
+
+.row2 {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  border-radius: 99px;
+  padding: 5px 11px;
+  font-size: 12px;
+  white-space: nowrap;
+  flex: none;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.chip.active {
+  border-color: transparent;
+  background: var(--surface-selected);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.chipSpacer {
+  flex: 1;
+}
+
+.resultLine {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex: none;
+}

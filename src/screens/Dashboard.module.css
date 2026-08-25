@@ -1,0 +1,294 @@
+.columns {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  max-width: 1360px;
+}
+.colLeft {
+  flex: 1.55;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.colRight {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+.cardWithList {
+  padding: 18px 20px 8px;
+}
+.listSpacer {
+  height: 10px;
+}
+
+.panelHeading {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.headingMeta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 4px;
+  border-bottom: 1px solid var(--border-hairline);
+  cursor: pointer;
+}
+.row:hover {
+  background: var(--surface-raised);
+}
+.row:last-of-type {
+  border-bottom: none;
+}
+
+.textBlock {
+  flex: 1;
+  min-width: 0;
+}
+.rowTitle {
+  font-size: 13.5px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rowSubline {
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 99px;
+  flex: none;
+}
+.projectName {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.subCount {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+.denseRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--border-hairline);
+  cursor: pointer;
+}
+.denseRow:hover {
+  background: var(--surface-raised);
+}
+.denseRow:last-of-type {
+  border-bottom: none;
+}
+.denseTitle {
+  flex: 1;
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.denseProjectDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 99px;
+  flex: none;
+}
+.denseProjectName {
+  width: 120px;
+  flex: none;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectRow {
+  cursor: pointer;
+}
+.projectHeaderLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.projectHeaderDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  flex: none;
+}
+.projectHeaderName {
+  font-size: 13px;
+  font-weight: 600;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.projectPercent {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.projectNote {
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.projectGroup + .projectGroup {
+  margin-top: 15px;
+}
+
+.blockedEntry {
+  border-left: 2px solid var(--blocked);
+  padding: 2px 0 2px 10px;
+  cursor: pointer;
+}
+.blockedEntry + .blockedEntry {
+  margin-top: 10px;
+}
+.blockedTitle {
+  font-size: 13px;
+  font-weight: 500;
+}
+.blockedSub {
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.emptyNote {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  padding: 4px;
+}
+
+/* Portfolio layout */
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.statTile {
+  padding: 16px 18px;
+}
+.statLabel {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.statValue {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  margin-top: 8px;
+}
+.statNote {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.projectCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+.projectCard {
+  padding: 16px 18px 14px;
+  display: flex;
+  flex-direction: column;
+}
+.projectCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.projectCardDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 99px;
+  flex: none;
+}
+.projectCardName {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.projectCardPercent {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.projectCardProgress {
+  margin: 11px 0 12px;
+}
+.miniTasks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.miniRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 0;
+  cursor: pointer;
+}
+.miniRow:hover {
+  opacity: 0.7;
+}
+.miniTitle {
+  flex: 1;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.projectCardFooter {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-hairline);
+  font-size: 11.5px;
+  color: var(--text-muted);
+}

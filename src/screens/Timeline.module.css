@@ -1,0 +1,116 @@
+.card {
+  max-width: 1360px;
+  padding: 16px 18px 20px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.headerRow {
+  margin-bottom: 10px;
+  display: flex;
+}
+.headerGutter {
+  width: 260px;
+  flex: none;
+}
+.headerStrip {
+  flex: 1;
+  display: flex;
+  border-left: 1px solid var(--border-hairline-2);
+}
+.dayCell {
+  flex: 1;
+  text-align: center;
+  padding: 4px 0 6px;
+  border-radius: 7px;
+  color: #5f5b55;
+}
+.dayCell.today {
+  background: var(--today-bg);
+  color: var(--today-text);
+}
+.dayCell.weekend {
+  background: var(--surface-raised);
+}
+.weekdayInitial {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+}
+.dayNumber {
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.row {
+  height: 38px;
+  border-top: 1px solid var(--border-hairline-2);
+  display: flex;
+  align-items: center;
+}
+
+.gutter {
+  width: 260px;
+  flex: none;
+  padding-right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.gutterDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 99px;
+  flex: none;
+}
+.gutterTitle {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track {
+  flex: 1;
+  position: relative;
+  height: 100%;
+  border-left: 1px solid var(--border-hairline-2);
+}
+.grid {
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--border-hairline-2),
+    var(--border-hairline-2) 1px,
+    transparent 1px,
+    transparent calc(100% / 16)
+  );
+}
+.bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 22px;
+  border-radius: 7px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.emptyNote {
+  padding: 24px 4px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}

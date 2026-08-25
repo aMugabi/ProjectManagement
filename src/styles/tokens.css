@@ -1,0 +1,48 @@
+:root {
+  /* Surfaces & lines */
+  --canvas: #f7f6f3;
+  --surface: #fffefb;
+  --surface-sunken: #f2f0eb;
+  --surface-raised: #faf9f6;
+  --surface-alt: #f4f2ed;
+  --surface-selected: #e6e2d9;
+  --track: #eeece6;
+  --today-bg: #efe9df;
+  --border: #e5e2db;
+  --border-strong: #e0dbd2;
+  --border-input: #ddd8ce;
+  --border-hairline: #f0eee9;
+  --border-hairline-2: #f2f0eb;
+  --border-check: #d6d1c7;
+  --border-drop: #cfc8ba;
+
+  /* Text */
+  --text: #1c1b19;
+  --text-secondary: #6b6760;
+  --text-nav: #5f5b55;
+  --text-muted: #8b8780;
+  --text-faint: #a5a099;
+
+  /* Accent & semantic (accent is tweakable) */
+  --accent: #b4674a;
+  --link: #8a5a44;
+  --link-hover: #6f4534;
+  --done: #6d7f5b;
+  --blocked: #9c5f52;
+  --blocked-bg: #f6e7e2;
+  --blocked-border: #e0c3ba;
+  --overdue-text: #8f4a3c;
+  --today-text: #7a4a2f;
+  --today-pill-bg: #f4ece2;
+  --prio-high: #b4674a;
+  --prio-med: #a08a4b;
+  --prio-low: #8b8880;
+  --prio-high-bg: #f7ebe6;
+  --prio-med-bg: #f5f1e4;
+  --prio-low-bg: #f1f0ec;
+  --todo-dot: #b9b4aa;
+  --avatar-bg: #ddd8ce;
+
+  --font-sans: 'Figtree', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}

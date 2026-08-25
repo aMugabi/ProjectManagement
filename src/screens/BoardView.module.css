@@ -1,0 +1,100 @@
+.board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(210px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.column {
+  background: var(--surface-sunken);
+  border-radius: 13px;
+  padding: 13px 11px 14px;
+  min-height: 160px;
+  border: 1px dashed transparent;
+}
+.column.dragging {
+  border-color: var(--border-drop);
+}
+
+.columnHeader {
+  padding: 2px 4px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.columnDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  flex: none;
+}
+.columnLabel {
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.columnCount {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 12px 13px;
+  box-shadow: 0 1px 2px rgba(28, 27, 25, 0.03);
+  cursor: grab;
+}
+.card.isDragging {
+  opacity: 0.45;
+}
+
+.topRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.topDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  flex: none;
+  margin-top: 5px;
+}
+.cardTitle {
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-wrap: pretty;
+}
+
+.subProgress {
+  margin-top: 10px;
+}
+
+.metaRow {
+  margin-top: 11px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.recur {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  flex: none;
+}
+.metaSpacer {
+  flex: 1;
+}
