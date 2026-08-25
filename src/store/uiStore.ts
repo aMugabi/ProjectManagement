@@ -56,7 +56,7 @@ export const useUiStore = create<UiStore>((set) => ({
 
   composing: false,
   draftTitle: '',
-  draftProject: 'aur',
+  draftProject: '',
   draftPrio: 'med',
   draftDueOffset: 0,
   openComposer: () => set({ composing: true }),

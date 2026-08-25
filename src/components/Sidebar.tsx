@@ -1,3 +1,4 @@
+import { useState, type KeyboardEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
@@ -11,13 +12,18 @@ const NAV_ITEMS = [
 ] as const;
 
 export function Sidebar() {
-  const { tasks, projects } = useTaskStore();
+  const { tasks, projects, addProject, renameProject } = useTaskStore();
   const navigate = useNavigate();
   const location = useLocation();
   const { project: projectFilter } = useFilters();
   const openComposer = useUiStore((st) => st.openComposer);
   const sidebarOpen = useUiStore((st) => st.sidebarOpen);
   const closeSidebar = useUiStore((st) => st.closeSidebar);
+
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [addingProject, setAddingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
 
   const currentScreen = location.pathname.replace('/', '') || 'dashboard';
   const openCount = tasks.filter((t) => t.status !== 'done').length;
@@ -30,6 +36,41 @@ export function Sidebar() {
   function goToProject(id: string) {
     navigate(`/tasks?project=${id}`);
     closeSidebar();
+  }
+
+  function startRename(id: string, name: string) {
+    setRenamingId(id);
+    setRenameDraft(name);
+  }
+
+  function commitRename() {
+    const trimmed = renameDraft.trim();
+    if (renamingId && trimmed) renameProject(renamingId, trimmed);
+    setRenamingId(null);
+    setRenameDraft('');
+  }
+
+  function handleRenameKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') e.currentTarget.blur();
+    if (e.key === 'Escape') {
+      setRenamingId(null);
+      setRenameDraft('');
+    }
+  }
+
+  function commitAddProject() {
+    const trimmed = newProjectName.trim();
+    if (trimmed) addProject(trimmed);
+    setAddingProject(false);
+    setNewProjectName('');
+  }
+
+  function handleAddProjectKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') e.currentTarget.blur();
+    if (e.key === 'Escape') {
+      setAddingProject(false);
+      setNewProjectName('');
+    }
   }
 
   return (
@@ -70,24 +111,80 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className={s.sectionLabel}>Projects</div>
+      <div className={s.sectionRow}>
+        <span className={s.sectionLabel}>Projects</span>
+        <button
+          type="button"
+          className={s.addProjectBtn}
+          onClick={() => setAddingProject(true)}
+          aria-label="Add project"
+        >
+          +
+        </button>
+      </div>
       <div className={s.projectList}>
+        {projects.length === 0 && !addingProject && (
+          <div className={s.emptyProjects}>No projects yet — add one above.</div>
+        )}
         {projects.map((p) => {
           const active = currentScreen === 'tasks' && projectFilter === p.id;
           const count = tasks.filter((t) => t.project === p.id && t.status !== 'done').length;
+          const isRenaming = renamingId === p.id;
           return (
-            <button
-              key={p.id}
-              type="button"
-              className={`${s.navRow} ${active ? s.active : ''}`}
-              onClick={() => goToProject(p.id)}
-            >
-              <span className={s.dot} style={{ background: p.color }} />
-              <span className={s.label}>{p.name}</span>
-              <span className={s.count}>{count}</span>
-            </button>
+            <div key={p.id} className={s.projectRowWrap}>
+              {isRenaming ? (
+                <div className={s.navRow}>
+                  <span className={s.dot} style={{ background: p.color }} />
+                  <input
+                    className={s.renameInput}
+                    autoFocus
+                    value={renameDraft}
+                    onChange={(e) => setRenameDraft(e.target.value)}
+                    onBlur={commitRename}
+                    onKeyDown={handleRenameKeyDown}
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className={`${s.navRow} ${active ? s.active : ''}`}
+                  onClick={() => goToProject(p.id)}
+                >
+                  <span className={s.dot} style={{ background: p.color }} />
+                  <span className={s.label}>{p.name}</span>
+                  <span className={s.count}>{count}</span>
+                </button>
+              )}
+              {!isRenaming && (
+                <button
+                  type="button"
+                  className={s.editProjectBtn}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    startRename(p.id, p.name);
+                  }}
+                  aria-label={`Rename "${p.name}"`}
+                >
+                  ✎
+                </button>
+              )}
+            </div>
           );
         })}
+        {addingProject && (
+          <div className={s.navRow}>
+            <span className={s.dot} style={{ background: 'var(--border-strong)' }} />
+            <input
+              className={s.renameInput}
+              autoFocus
+              placeholder="Project name"
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              onBlur={commitAddProject}
+              onKeyDown={handleAddProjectKeyDown}
+            />
+          </div>
+        )}
       </div>
 
       <div className={s.spacer} />

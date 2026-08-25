@@ -47,12 +47,34 @@ export function Composer() {
 
   if (!composing) return null;
 
+  if (projects.length === 0) {
+    return (
+      <div className={s.scrim} onClick={closeComposer}>
+        <div className={s.dialog} onClick={(e) => e.stopPropagation()}>
+          <div className={s.kicker}>New task</div>
+          <p className={s.emptyProjectsNote}>
+            Add a project from the sidebar first — every task needs one to live under.
+          </p>
+          <div className={s.footerRow}>
+            <span className={s.hint}>esc to close</span>
+            <button type="button" className={s.cancelBtn} onClick={closeComposer}>
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Falls back to the first project if the remembered draft project was renamed/removed.
+  const projectValue = projects.some((p) => p.id === draftProject) ? draftProject : projects[0].id;
+
   function submit() {
     const title = draftTitle.trim();
     if (!title) return;
     addTask({
       title,
-      project: draftProject,
+      project: projectValue,
       priority: draftPrio,
       dueDate: dateToIso(addDays(today(), draftDueOffset)),
     });
@@ -79,7 +101,7 @@ export function Composer() {
         <div className={s.controlRow}>
           <select
             className={s.projectSelect}
-            value={draftProject}
+            value={projectValue}
             onChange={(e) => setDraftProject(e.target.value)}
           >
             {projects.map((p) => (
