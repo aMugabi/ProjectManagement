@@ -51,7 +51,19 @@ made while translating the prototype into production code:
 - The Focus dashboard layout is the default; Portfolio remains available via
   the header toggle rather than being decided away.
 
-Not yet implemented, called out in the original spec as open decisions:
-recurrence semantics (completing a recurring task doesn't spawn the next
-instance), derived-vs-manual `blocked` status, manual board ordering, and
-mobile/responsive layouts.
+The spec's open decisions have since been resolved:
+
+- **Recurrence** — completing a recurring task rolls it to its next
+  occurrence (due date advanced, subtasks reset, status back to "to do")
+  instead of resting at "done".
+- **Blocked status is derived, not manual** — a task reads as Blocked
+  whenever it has an unfinished dependency; it's no longer a status you pick
+  from a dropdown. Dependencies are editable from the task drawer.
+- **Manual board ordering** — the Board view supports drag-to-reorder within
+  a column (via `@dnd-kit/sortable`), independent of the List view's
+  due-date sort. The Blocked column stays derived-only: its cards can't be
+  dragged, since leaving it requires resolving a dependency, not a drag.
+- **Responsive layout** — below ~860px the sidebar becomes an off-canvas
+  menu (hamburger toggle in the header), the dashboard's two columns stack,
+  the board becomes a horizontally swipeable carousel, and the drawer/
+  composer go full-width.

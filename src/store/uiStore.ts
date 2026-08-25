@@ -6,6 +6,10 @@ interface UiStore {
   openDrawer: (id: string) => void;
   closeDrawer: () => void;
 
+  sidebarOpen: boolean;
+  toggleSidebar: () => void;
+  closeSidebar: () => void;
+
   editingId: string | null;
   editDraft: string;
   startEdit: (id: string, initial: string) => void;
@@ -36,6 +40,10 @@ export const useUiStore = create<UiStore>((set) => ({
   openId: null,
   openDrawer: (id) => set({ openId: id, editingId: null }),
   closeDrawer: () => set({ openId: null }),
+
+  sidebarOpen: false,
+  toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+  closeSidebar: () => set({ sidebarOpen: false }),
 
   editingId: null,
   editDraft: '',

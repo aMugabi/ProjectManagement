@@ -3,7 +3,7 @@ import type { Task } from '../types';
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
-import { visibleTasks, withoutDone, sortByDue, projectById, subtaskProgress, projectStats, depTitles } from '../lib/selectors';
+import { visibleTasks, withoutDone, sortByDue, projectById, subtaskProgress, projectStats, depTitles, effectiveStatus } from '../lib/selectors';
 import { offsetFromToday } from '../lib/date';
 import { Checkbox } from '../components/shared/Checkbox';
 import { PriorityPill } from '../components/shared/PriorityPill';
@@ -26,7 +26,7 @@ export function FocusLayout() {
     }),
   );
   const overdueCount = needsToday.filter((t) => offsetFromToday(t.dueDate) < 0).length;
-  const blocked = tasks.filter((t) => t.status === 'blocked');
+  const blocked = tasks.filter((t) => effectiveStatus(t, tasks) === 'blocked');
 
   function goToProject(id: string) {
     navigate(`/tasks?project=${id}`);

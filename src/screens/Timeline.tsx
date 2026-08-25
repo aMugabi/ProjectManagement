@@ -1,7 +1,7 @@
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
-import { visibleTasks, withoutDone, sortByDue, projectById } from '../lib/selectors';
+import { visibleTasks, withoutDone, sortByDue, projectById, effectiveStatus } from '../lib/selectors';
 import { addDays, dueMeta, offsetFromToday, today } from '../lib/date';
 import s from './Timeline.module.css';
 
@@ -61,7 +61,7 @@ export function Timeline() {
         if (widthPct < 4) widthPct = 4;
         const leftPct = (startDay / WINDOW_SPAN) * 100;
 
-        const blocked = t.status === 'blocked';
+        const blocked = effectiveStatus(t, tasks) === 'blocked';
         const background = blocked ? 'var(--blocked-bg)' : `${project.color}22`;
         const border = blocked ? '1px solid var(--blocked-border)' : `1px solid ${project.color}55`;
 

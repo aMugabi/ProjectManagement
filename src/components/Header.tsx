@@ -1,6 +1,7 @@
 import { useLocation } from 'react-router-dom';
 import { useEffect, useRef } from 'react';
 import { useTaskStore } from '../store/taskStore';
+import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
 import { visibleTasks, withoutDone } from '../lib/selectors';
 import { offsetFromToday, formatLongDate, today } from '../lib/date';
@@ -18,6 +19,7 @@ export function Header() {
   const { tasks, projects } = useTaskStore();
   const f = useFilters();
   const searchRef = useRef<HTMLInputElement>(null);
+  const toggleSidebar = useUiStore((st) => st.toggleSidebar);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -62,6 +64,9 @@ export function Header() {
   return (
     <header className={s.header}>
       <div className={s.row1}>
+        <button type="button" className={s.menuBtn} onClick={toggleSidebar} aria-label="Open menu">
+          ≡
+        </button>
         <div className={s.left}>
           <div className={s.kicker}>{kicker}</div>
           <h1 className={s.title}>{title}</h1>

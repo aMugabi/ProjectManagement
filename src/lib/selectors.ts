@@ -1,4 +1,4 @@
-import type { Priority, Project, Task } from '../types';
+import type { Priority, Project, Status, Task } from '../types';
 import { offsetFromToday } from './date';
 
 export interface FilterState {
@@ -28,6 +28,23 @@ export function withoutDone(tasks: Task[]): Task[] {
 
 export function sortByDue(tasks: Task[]): Task[] {
   return [...tasks].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+}
+
+export function sortByOrder(tasks: Task[]): Task[] {
+  return [...tasks].sort((a, b) => a.order - b.order);
+}
+
+/** A task is blocked whenever it has a dependency that isn't done — 'blocked' is derived, not chosen. */
+export function isDepBlocked(task: Task, tasks: Task[]): boolean {
+  if (!task.deps.length) return false;
+  const byId = new Map(tasks.map((t) => [t.id, t]));
+  return task.deps.some((id) => byId.get(id)?.status !== 'done');
+}
+
+/** The status to display/group by: raw status, except dependency-blocked tasks always read as 'blocked'. */
+export function effectiveStatus(task: Task, tasks: Task[]): Status {
+  if (task.status === 'done') return 'done';
+  return isDepBlocked(task, tasks) ? 'blocked' : task.status;
 }
 
 export function projectById(projects: Project[], id: string): Project {

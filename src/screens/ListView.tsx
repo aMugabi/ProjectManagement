@@ -3,16 +3,16 @@ import type { Status, Task } from '../types';
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
-import { visibleTasks, withoutDone, sortByDue, subtaskProgress } from '../lib/selectors';
+import { visibleTasks, withoutDone, sortByDue, subtaskProgress, isDepBlocked, depTitles } from '../lib/selectors';
 import { Checkbox } from '../components/shared/Checkbox';
 import { PriorityPill } from '../components/shared/PriorityPill';
 import { DuePill } from '../components/shared/DuePill';
 import s from './ListView.module.css';
 
+// 'blocked' isn't offered here — it's derived from unresolved dependencies, not picked manually.
 const STATUS_OPTIONS: { value: Status; label: string }[] = [
   { value: 'todo', label: 'To do' },
   { value: 'doing', label: 'In progress' },
-  { value: 'blocked', label: 'Blocked' },
   { value: 'done', label: 'Done' },
 ];
 
@@ -61,6 +61,7 @@ export function ListView() {
           {groupTasks.map((t) => {
             const prog = subtaskProgress(t);
             const editing = ui.editingId === t.id;
+            const blocked = isDepBlocked(t, tasks);
             return (
               <div key={t.id} className={s.row}>
                 <Checkbox done={t.status === 'done'} onToggle={() => toggleDone(t.id)} label={`Mark "${t.title}" done`} />
@@ -88,17 +89,23 @@ export function ListView() {
                     {prog.done}/{prog.total}
                   </span>
                 )}
-                <select
-                  className={s.statusSelect}
-                  value={t.status}
-                  onChange={(e) => setStatus(t.id, e.target.value as Status)}
-                >
-                  {STATUS_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                {blocked && t.status !== 'done' ? (
+                  <span className={s.blockedBadge} title={`Waiting on ${depTitles(tasks, t.deps)}`}>
+                    Blocked
+                  </span>
+                ) : (
+                  <select
+                    className={s.statusSelect}
+                    value={t.status}
+                    onChange={(e) => setStatus(t.id, e.target.value as Status)}
+                  >
+                    {STATUS_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <PriorityPill priority={t.priority} status={t.status} />
                 <DuePill dueDate={t.dueDate} status={t.status} />
               </div>

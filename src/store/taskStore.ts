@@ -2,6 +2,20 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Priority, Status, Task } from '../types';
 import { buildSeedTasks, PROJECTS } from '../data/seed';
+import { advanceRecurrence } from '../lib/date';
+
+/** Completing a recurring task rolls it to its next occurrence instead of resting at 'done'. */
+function completeTask(task: Task): Task {
+  if (task.recurring) {
+    return {
+      ...task,
+      status: 'todo',
+      dueDate: advanceRecurrence(task.dueDate, task.recurring),
+      subs: task.subs.map((sub) => ({ ...sub, done: false })),
+    };
+  }
+  return { ...task, status: 'done' };
+}
 
 interface TaskStore {
   tasks: Task[];
@@ -15,6 +29,10 @@ interface TaskStore {
   toggleSubtask: (id: string, index: number) => void;
   deleteTask: (id: string) => void;
   addTask: (input: { title: string; project: string; priority: Priority; dueDate: string }) => void;
+  addDependency: (id: string, dependsOnId: string) => void;
+  removeDependency: (id: string, dependsOnId: string) => void;
+  /** Move a task into a board column at a specific position, renumbering that column's order. */
+  moveTask: (id: string, destStatus: Status, destColumnOrderedIds: string[]) => void;
 }
 
 export const useTaskStore = create<TaskStore>()(
@@ -25,13 +43,19 @@ export const useTaskStore = create<TaskStore>()(
 
       toggleDone: (id) =>
         set((s) => ({
-          tasks: s.tasks.map((t) =>
-            t.id === id ? { ...t, status: t.status === 'done' ? 'todo' : 'done' } : t,
-          ),
+          tasks: s.tasks.map((t) => {
+            if (t.id !== id) return t;
+            return t.status === 'done' ? { ...t, status: 'todo' } : completeTask(t);
+          }),
         })),
 
       setStatus: (id, status) =>
-        set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, status } : t)) })),
+        set((s) => ({
+          tasks: s.tasks.map((t) => {
+            if (t.id !== id) return t;
+            return status === 'done' ? completeTask(t) : { ...t, status };
+          }),
+        })),
 
       setPriority: (id, priority) =>
         set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, priority } : t)) })),
@@ -77,10 +101,38 @@ export const useTaskStore = create<TaskStore>()(
               recurring: null,
               deps: [],
               notes: '',
+              order: Math.min(0, ...s.tasks.map((t) => t.order)) - 1,
             },
             ...s.tasks,
           ],
         })),
+
+      addDependency: (id, dependsOnId) =>
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            t.id === id && t.id !== dependsOnId && !t.deps.includes(dependsOnId)
+              ? { ...t, deps: [...t.deps, dependsOnId] }
+              : t,
+          ),
+        })),
+
+      removeDependency: (id, dependsOnId) =>
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            t.id === id ? { ...t, deps: t.deps.filter((d) => d !== dependsOnId) } : t,
+          ),
+        })),
+
+      moveTask: (id, destStatus, destColumnOrderedIds) =>
+        set((s) => {
+          const orderById = new Map(destColumnOrderedIds.map((tid, i) => [tid, i]));
+          return {
+            tasks: s.tasks.map((t) => {
+              if (t.id === id) return { ...t, status: destStatus, order: orderById.get(id) ?? t.order };
+              return orderById.has(t.id) ? { ...t, order: orderById.get(t.id)! } : t;
+            }),
+          };
+        }),
     }),
     { name: 'ledger-tasks' },
   ),

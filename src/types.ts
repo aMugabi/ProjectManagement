@@ -21,6 +21,8 @@ export interface Task {
   recurring: Recurring;
   deps: string[];
   notes: string;
+  /** Manual sort position within a board status column. */
+  order: number;
 }
 
 export interface Project {

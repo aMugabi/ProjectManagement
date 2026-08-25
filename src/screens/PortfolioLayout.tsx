@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
-import { visibleTasks, withoutDone, sortByDue, projectStats } from '../lib/selectors';
+import { visibleTasks, withoutDone, sortByDue, projectStats, effectiveStatus } from '../lib/selectors';
 import { offsetFromToday } from '../lib/date';
 import { Checkbox } from '../components/shared/Checkbox';
 import { DuePill } from '../components/shared/DuePill';
@@ -18,7 +18,7 @@ export function PortfolioLayout() {
   const open = withoutDone(visibleTasks(tasks, projects, f));
   const dueThisWeek = open.filter((t) => offsetFromToday(t.dueDate) <= 7);
   const overdue = open.filter((t) => offsetFromToday(t.dueDate) < 0);
-  const blocked = tasks.filter((t) => t.status === 'blocked');
+  const blocked = tasks.filter((t) => effectiveStatus(t, tasks) === 'blocked');
   const oldestOverdueDays = overdue.length
     ? Math.max(...overdue.map((t) => Math.abs(offsetFromToday(t.dueDate))))
     : 0;

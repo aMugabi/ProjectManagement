@@ -104,6 +104,54 @@
   background: var(--surface);
 }
 
+.blockedBadge {
+  justify-self: start;
+  border: 1px solid var(--blocked-border);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--blocked-bg);
+  color: var(--blocked);
+  white-space: normal;
+}
+
+.depsBox {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  white-space: normal;
+}
+.depChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-alt);
+  border-radius: 99px;
+  padding: 4px 5px 4px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.depRemove {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 3px;
+}
+.depRemove:hover {
+  color: var(--text);
+}
+.depAddSelect {
+  border: 1px dashed var(--border-strong);
+  border-radius: 99px;
+  padding: 4px 10px;
+  font-size: 12px;
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
 .prioGroup {
   display: flex;
   flex-wrap: wrap;
@@ -228,4 +276,10 @@
   font-size: 13px;
   color: var(--text-muted);
   flex: none;
+}
+
+@media (max-width: 640px) {
+  .panel {
+    width: 100%;
+  }
 }

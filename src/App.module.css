@@ -24,3 +24,9 @@
   overflow: auto;
   padding: 24px 28px 60px;
 }
+
+@media (max-width: 860px) {
+  .content {
+    padding: 16px 16px 48px;
+  }
+}

@@ -113,3 +113,14 @@
   white-space: nowrap;
   flex: none;
 }
+
+@media (max-width: 640px) {
+  .scrim {
+    padding-top: 8vh;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .dialog {
+    width: 100%;
+  }
+}

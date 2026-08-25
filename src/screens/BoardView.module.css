@@ -58,6 +58,11 @@
 .card.isDragging {
   opacity: 0.45;
 }
+.card.isBlocked {
+  cursor: pointer;
+  background: var(--blocked-bg);
+  border-color: var(--blocked-border);
+}
 
 .topRow {
   display: flex;
@@ -95,6 +100,27 @@
   color: var(--text-muted);
   flex: none;
 }
+.blockedTag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--blocked);
+  flex: none;
+  white-space: nowrap;
+}
 .metaSpacer {
   flex: 1;
+}
+
+@media (max-width: 860px) {
+  .board {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+  .column {
+    min-width: 78vw;
+    scroll-snap-align: start;
+  }
 }

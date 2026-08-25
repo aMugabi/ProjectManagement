@@ -16,28 +16,41 @@ export function Sidebar() {
   const location = useLocation();
   const { project: projectFilter } = useFilters();
   const openComposer = useUiStore((st) => st.openComposer);
+  const sidebarOpen = useUiStore((st) => st.sidebarOpen);
+  const closeSidebar = useUiStore((st) => st.closeSidebar);
 
   const currentScreen = location.pathname.replace('/', '') || 'dashboard';
   const openCount = tasks.filter((t) => t.status !== 'done').length;
 
   function goToScreen(screen: string) {
     navigate(`/${screen}`);
+    closeSidebar();
   }
 
   function goToProject(id: string) {
     navigate(`/tasks?project=${id}`);
+    closeSidebar();
   }
 
   return (
-    <aside className={s.sidebar}>
-      <div className={s.brandRow}>
-        <div className={s.mark} />
-        <span className={s.wordmark}>Ledger</span>
-      </div>
+    <>
+      <div
+        className={`${s.scrim} ${sidebarOpen ? s.visible : ''}`}
+        onClick={closeSidebar}
+        aria-hidden="true"
+      />
+      <aside className={`${s.sidebar} ${sidebarOpen ? s.open : ''}`}>
+        <div className={s.brandRow}>
+          <div className={s.mark} />
+          <span className={s.wordmark}>Ledger</span>
+          <button type="button" className={s.closeSidebarBtn} onClick={closeSidebar} aria-label="Close menu">
+            ×
+          </button>
+        </div>
 
-      <button type="button" className={s.newTaskButton} onClick={openComposer}>
-        <span className={s.plus}>+</span> New task
-      </button>
+        <button type="button" className={s.newTaskButton} onClick={openComposer}>
+          <span className={s.plus}>+</span> New task
+        </button>
 
       <nav className={s.nav}>
         {NAV_ITEMS.map((item) => {
@@ -82,6 +95,7 @@ export function Sidebar() {
         <div className={s.avatar}>JM</div>
         <span className={s.footerLabel}>Solo workspace</span>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

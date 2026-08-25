@@ -1,5 +1,5 @@
 /** Real-date helpers. All task dates are ISO strings ('YYYY-MM-DD'), compared at day granularity. */
-import type { Status } from '../types';
+import type { Recurring, Status } from '../types';
 
 const DAY = 86400000;
 
@@ -25,6 +25,14 @@ export function dateToIso(d: Date): string {
 
 export function addDays(d: Date, days: number): Date {
   return new Date(d.getTime() + days * DAY);
+}
+
+/** Next due date for a recurring task, advanced from its current due date (not from today). */
+export function advanceRecurrence(iso: string, recurring: NonNullable<Recurring>): string {
+  const d = isoToDate(iso);
+  if (recurring === 'weekly') return dateToIso(addDays(d, 7));
+  if (recurring === 'monthly') return dateToIso(new Date(d.getFullYear(), d.getMonth() + 1, d.getDate()));
+  return dateToIso(new Date(d.getFullYear() + 1, d.getMonth(), d.getDate()));
 }
 
 /** Days from today to the given ISO date. Negative = past. */

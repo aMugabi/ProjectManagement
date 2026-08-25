@@ -2,15 +2,15 @@ import { useEffect, useRef, type KeyboardEvent } from 'react';
 import type { Priority, Status } from '../types';
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
-import { projectById, depTitles, subtaskProgress } from '../lib/selectors';
-import { dueMeta, formatLongDateShortWeekday, isoToDate } from '../lib/date';
+import { projectById, depTitles, subtaskProgress, isDepBlocked } from '../lib/selectors';
+import { advanceRecurrence, dueMeta, formatLongDateShortWeekday, isoToDate } from '../lib/date';
 import { Checkbox } from './shared/Checkbox';
 import s from './Drawer.module.css';
 
+// 'blocked' isn't offered here — it's derived from unresolved dependencies, not picked manually.
 const STATUS_OPTIONS: { value: Status; label: string }[] = [
   { value: 'todo', label: 'To do' },
   { value: 'doing', label: 'In progress' },
-  { value: 'blocked', label: 'Blocked' },
   { value: 'done', label: 'Done' },
 ];
 
@@ -31,8 +31,20 @@ export function Drawer() {
   const closeDrawer = useUiStore((st) => st.closeDrawer);
   const subDraft = useUiStore((st) => st.subDraft);
   const setSubDraft = useUiStore((st) => st.setSubDraft);
-  const { tasks, projects, toggleDone, setStatus, setPriority, setTitle, setNotes, addSubtask, toggleSubtask, deleteTask } =
-    useTaskStore();
+  const {
+    tasks,
+    projects,
+    toggleDone,
+    setStatus,
+    setPriority,
+    setTitle,
+    setNotes,
+    addSubtask,
+    toggleSubtask,
+    deleteTask,
+    addDependency,
+    removeDependency,
+  } = useTaskStore();
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
   const task = openId ? tasks.find((t) => t.id === openId) : null;
@@ -58,6 +70,10 @@ export function Drawer() {
   const meta = dueMeta(task.dueDate, task.status);
   const prog = subtaskProgress(task);
   const done = task.status === 'done';
+  const blocked = isDepBlocked(task, tasks);
+  const depCandidates = tasks.filter(
+    (t) => t.id !== task.id && !task.deps.includes(t.id) && !t.deps.includes(task.id),
+  );
 
   function handleSubKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter' && subDraft.trim() && task) {
@@ -98,17 +114,21 @@ export function Drawer() {
         <div className={s.body}>
           <div className={s.fieldGrid}>
             <span className={s.fieldLabel}>Status</span>
-            <select
-              className={s.select}
-              value={task.status}
-              onChange={(e) => setStatus(task.id, e.target.value as Status)}
-            >
-              {STATUS_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+            {blocked && !done ? (
+              <span className={s.blockedBadge}>Blocked · waiting on {depTitles(tasks, task.deps)}</span>
+            ) : (
+              <select
+                className={s.select}
+                value={task.status}
+                onChange={(e) => setStatus(task.id, e.target.value as Status)}
+              >
+                {STATUS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            )}
 
             <span className={s.fieldLabel}>Priority</span>
             <div className={s.prioGroup}>
@@ -138,10 +158,51 @@ export function Drawer() {
             </span>
 
             <span className={s.fieldLabel}>Repeats</span>
-            <span className={s.fieldValueSans}>{task.recurring ? RECUR_LABEL[task.recurring] : 'does not repeat'}</span>
+            <span className={s.fieldValueSans}>
+              {task.recurring
+                ? `${RECUR_LABEL[task.recurring]} · next ${formatLongDateShortWeekday(isoToDate(advanceRecurrence(task.dueDate, task.recurring)))}`
+                : 'does not repeat'}
+            </span>
 
             <span className={s.fieldLabel}>Depends on</span>
-            <span className={s.fieldValueSans}>{depTitles(tasks, task.deps)}</span>
+            <div className={s.depsBox}>
+              {task.deps.map((depId) => {
+                const dep = tasks.find((t) => t.id === depId);
+                if (!dep) return null;
+                return (
+                  <span key={depId} className={s.depChip}>
+                    {dep.title}
+                    <button
+                      type="button"
+                      className={s.depRemove}
+                      onClick={() => removeDependency(task.id, depId)}
+                      aria-label={`Remove dependency on "${dep.title}"`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                );
+              })}
+              {depCandidates.length > 0 && (
+                <select
+                  className={s.depAddSelect}
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) addDependency(task.id, e.target.value);
+                  }}
+                >
+                  <option value="">+ Add dependency</option>
+                  {depCandidates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {task.deps.length === 0 && depCandidates.length === 0 && (
+                <span className={s.fieldValueSans}>—</span>
+              )}
+            </div>
           </div>
 
           <div className={s.subtasksSection}>
@@ -200,7 +261,7 @@ export function Drawer() {
             className={`${s.primaryBtn} ${done ? s.reopen : s.complete}`}
             onClick={() => toggleDone(task.id)}
           >
-            {done ? 'Reopen task' : 'Mark complete'}
+            {done ? 'Reopen task' : task.recurring ? 'Complete & repeat' : 'Mark complete'}
           </button>
           <button type="button" className={s.deleteBtn} onClick={handleDelete}>
             Delete
