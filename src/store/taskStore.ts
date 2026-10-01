@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { Priority, Project, Recurring, Status, Task, Workspace } from '../types';
 import { buildSeedTasks, PROJECTS } from '../data/seed';
 import { advanceRecurrence } from '../lib/date';
+import { createCloudStorage } from '../lib/cloudStorage';
 
 const PROJECT_COLORS = [
   '#b4674a',
@@ -254,6 +255,6 @@ export const useTaskStore = create<TaskStore>()(
           };
         }),
     }),
-    { name: 'ledger-tasks-v2' },
+    { name: 'ledger-tasks-v2', storage: createCloudStorage() },
   ),
 );

@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { checkPassword, isUnlocked, markUnlocked } from '../lib/auth';
+import { checkPassword, isUnlocked } from '../lib/auth';
+import { useTaskStore } from '../store/taskStore';
 import s from './LoginGate.module.css';
 
 export function LoginGate({ children }: { children: ReactNode }) {
@@ -16,8 +17,10 @@ export function LoginGate({ children }: { children: ReactNode }) {
     const ok = await checkPassword(password);
     setChecking(false);
     if (ok) {
-      markUnlocked();
       setUnlocked(true);
+      // The store rehydrated from local cache before login (no token yet) —
+      // now that we have one, pull the latest cloud copy.
+      useTaskStore.persist.rehydrate();
     } else {
       setError(true);
       setPassword('');

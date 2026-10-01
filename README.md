@@ -27,6 +27,28 @@ npm run dev
 
 Other scripts: `npm run build`, `npm run preview`, `npm run lint`.
 
+## Cloud sync (Vercel deploy only)
+
+Task data is written to `localStorage` immediately and mirrored to `/api/state`,
+a serverless function backed by an Upstash Redis store, so it follows you across
+devices. To enable it on a Vercel deployment:
+
+1. In the Vercel project, open **Storage → Create Database** (or **Marketplace**)
+   and add an **Upstash Redis** store, connected to this project. That injects
+   `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` automatically.
+2. Pick a password and hash it — in a browser console, run:
+   ```js
+   crypto.subtle.digest('SHA-256', new TextEncoder().encode('your-password'))
+     .then(b => console.log([...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('')))
+   ```
+3. Add that hash as the `AUTH_PASSWORD_HASH` environment variable on the Vercel
+   project, then redeploy. The password itself is never stored anywhere —
+   `api/state.ts` only ever sees and compares the hash.
+
+Without these set, the app still works from `localStorage` alone — `/api/state`
+just won't be reachable (or, locally, `npm run dev` doesn't run it at all; use
+`vercel dev` to exercise the API routes locally).
+
 ## Stack
 
 - **React Router** — screens and filters are linkable via the URL.

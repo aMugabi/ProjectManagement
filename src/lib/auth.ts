@@ -1,7 +1,9 @@
-// Client-side-only gate: keeps casual visitors off a public URL, not a real security boundary.
-// The password itself is never stored — only its SHA-256 hash, computed once by whoever set it.
-const PASSWORD_HASH = '90dfe6dc3163d3bb0562e8b1eb2a9ec3f145c77b69fb215b1b08e06beb651185';
-const UNLOCK_KEY = 'ledger-unlocked';
+// Client-side-only gate: keeps casual visitors off a public URL, not a real security
+// boundary on its own. The real check happens server-side in api/state.ts, which
+// compares this same password hash (sent as a bearer token) against the
+// AUTH_PASSWORD_HASH environment variable before returning or accepting any task
+// data — so the cloud copy isn't readable by anyone who just finds the URL.
+const TOKEN_KEY = 'ledger-auth-token';
 
 async function sha256Hex(input: string): Promise<string> {
   const bytes = new TextEncoder().encode(input);
@@ -9,14 +11,37 @@ async function sha256Hex(input: string): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-export async function checkPassword(input: string): Promise<boolean> {
-  return (await sha256Hex(input)) === PASSWORD_HASH;
+let authToken: string | null = null;
+try {
+  authToken = localStorage.getItem(TOKEN_KEY);
+} catch {
+  // localStorage unavailable (e.g. private browsing) — the app will just re-prompt.
+}
+
+/** The password hash to send as a bearer token on every /api/state request. */
+export function getAuthToken(): string | null {
+  return authToken;
 }
 
 export function isUnlocked(): boolean {
-  return localStorage.getItem(UNLOCK_KEY) === 'true';
+  return authToken !== null;
 }
 
-export function markUnlocked(): void {
-  localStorage.setItem(UNLOCK_KEY, 'true');
+export async function checkPassword(password: string): Promise<boolean> {
+  const hash = await sha256Hex(password);
+  try {
+    const res = await fetch('/api/state', { headers: { Authorization: `Bearer ${hash}` } });
+    if (!res.ok) return false;
+  } catch {
+    // No cloud API reachable (e.g. `npm run dev` without `vercel dev`) — let local
+    // development through unverified; nothing syncs until the real API answers.
+    console.warn('Ledger: cloud API unreachable, skipping server-side password check.');
+  }
+  authToken = hash;
+  try {
+    localStorage.setItem(TOKEN_KEY, hash);
+  } catch {
+    // ignore
+  }
+  return true;
 }
