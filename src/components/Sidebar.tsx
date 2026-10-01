@@ -17,6 +17,7 @@ export function Sidebar() {
     projects,
     addProject,
     renameProject,
+    deleteProject,
     workspaces,
     activeWorkspaceId,
     addWorkspace,
@@ -89,6 +90,14 @@ export function Sidebar() {
       setAddingProject(false);
       setNewProjectName('');
     }
+  }
+
+  function handleDeleteProject(id: string, name: string) {
+    const count = tasks.filter((t) => t.project === id).length;
+    const message = count
+      ? `Delete "${name}"? This also deletes its ${count} task${count === 1 ? '' : 's'}. This can't be undone.`
+      : `Delete "${name}"? This can't be undone.`;
+    if (window.confirm(message)) deleteProject(id);
   }
 
   function switchWorkspace(id: string) {
@@ -216,17 +225,30 @@ export function Sidebar() {
                 </button>
               )}
               {!isRenaming && (
-                <button
-                  type="button"
-                  className={s.editProjectBtn}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startRename(p.id, p.name);
-                  }}
-                  aria-label={`Rename "${p.name}"`}
-                >
-                  ✎
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className={s.editProjectBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startRename(p.id, p.name);
+                    }}
+                    aria-label={`Rename "${p.name}"`}
+                  >
+                    ✎
+                  </button>
+                  <button
+                    type="button"
+                    className={`${s.editProjectBtn} ${s.deleteProjectBtn}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteProject(p.id, p.name);
+                    }}
+                    aria-label={`Delete "${p.name}"`}
+                  >
+                    🗑
+                  </button>
+                </>
               )}
             </div>
           );

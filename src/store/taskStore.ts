@@ -66,6 +66,7 @@ interface TaskStore {
   setActiveWorkspace: (id: string) => void;
   addProject: (name: string) => void;
   renameProject: (id: string, name: string) => void;
+  deleteProject: (id: string) => void;
   toggleDone: (id: string) => void;
   setStatus: (id: string, status: Status) => void;
   setPriority: (id: string, priority: Priority) => void;
@@ -151,6 +152,23 @@ export const useTaskStore = create<TaskStore>()(
           const trimmed = name.trim();
           if (!trimmed) return s;
           return { projects: s.projects.map((p) => (p.id === id ? { ...p, name: trimmed } : p)) };
+        }),
+
+      // Deleting a project also deletes its tasks, and strips them from any
+      // remaining task's dependencies so nothing is left blocked on a ghost.
+      deleteProject: (id) =>
+        set((s) => {
+          const deletedIds = new Set(s.tasks.filter((t) => t.project === id).map((t) => t.id));
+          return {
+            projects: s.projects.filter((p) => p.id !== id),
+            tasks: s.tasks
+              .filter((t) => t.project !== id)
+              .map((t) =>
+                t.deps.some((d) => deletedIds.has(d))
+                  ? { ...t, deps: t.deps.filter((d) => !deletedIds.has(d)) }
+                  : t,
+              ),
+          };
         }),
 
       toggleDone: (id) =>
