@@ -20,6 +20,7 @@ export function Header() {
   const f = useFilters();
   const searchRef = useRef<HTMLInputElement>(null);
   const toggleSidebar = useUiStore((st) => st.toggleSidebar);
+  const openComposer = useUiStore((st) => st.openComposer);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -71,6 +72,12 @@ export function Header() {
           <div className={s.kicker}>{kicker}</div>
           <h1 className={s.title}>{title}</h1>
         </div>
+        {project && (
+          // The composer pre-selects the filtered project, so this adds straight into it.
+          <button type="button" className={s.newTaskBtn} onClick={openComposer}>
+            <span className={s.plus}>+</span> New task
+          </button>
+        )}
         <div className={s.right}>
           <div className={s.search}>
             <span className={s.glyph}>/</span>
