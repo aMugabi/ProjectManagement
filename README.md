@@ -27,6 +27,20 @@ npm run dev
 
 Other scripts: `npm run build`, `npm run preview`, `npm run lint`.
 
+## Installing as an app (PWA)
+
+Ledger is a Progressive Web App (via `vite-plugin-pwa`): on either deploy, use
+the browser's **Install** button (desktop Chrome/Edge) or **Share → Add to Home
+Screen** (iOS Safari) to run it in its own window. A service worker precaches
+the app shell, so it opens offline; edits still land in `localStorage` and
+sync to `/api/state` the next time a change is made online. The service worker
+never caches `/api/state`. New deploys are picked up automatically on the next
+launch.
+
+The service worker only runs in production builds — use `npm run build &&
+npm run preview` to try it locally. The PNG icons in `public/` are rendered
+from `public/favicon.svg`.
+
 ## Cloud sync (Vercel deploy only)
 
 Task data is written to `localStorage` immediately and mirrored to `/api/state`,
