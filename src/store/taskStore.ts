@@ -4,6 +4,7 @@ import type { Priority, Project, Recurring, Status, Task, Workspace } from '../t
 import { buildSeedTasks, PROJECTS } from '../data/seed';
 import { advanceRecurrence } from '../shared/date';
 import { createCloudStorage } from '../lib/cloudStorage';
+import { stripDeps, wouldCreateCycle } from '../lib/selectors';
 
 const PROJECT_COLORS = [
   '#b4674a',
@@ -161,13 +162,10 @@ export const useTaskStore = create<TaskStore>()(
           const deletedIds = new Set(s.tasks.filter((t) => t.project === id).map((t) => t.id));
           return {
             projects: s.projects.filter((p) => p.id !== id),
-            tasks: s.tasks
-              .filter((t) => t.project !== id)
-              .map((t) =>
-                t.deps.some((d) => deletedIds.has(d))
-                  ? { ...t, deps: t.deps.filter((d) => !deletedIds.has(d)) }
-                  : t,
-              ),
+            tasks: stripDeps(
+              s.tasks.filter((t) => t.project !== id),
+              deletedIds,
+            ),
           };
         }),
 
@@ -224,7 +222,14 @@ export const useTaskStore = create<TaskStore>()(
           ),
         })),
 
-      deleteTask: (id) => set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
+      // Like deleteProject, strip the task from other tasks' deps so they aren't blocked on it forever.
+      deleteTask: (id) =>
+        set((s) => ({
+          tasks: stripDeps(
+            s.tasks.filter((t) => t.id !== id),
+            new Set([id]),
+          ),
+        })),
 
       addTask: ({ title, project, priority, dueDate }) =>
         set((s) => ({
@@ -246,14 +251,16 @@ export const useTaskStore = create<TaskStore>()(
           ],
         })),
 
+      // Refuses dependencies that would close a loop — every task in a loop would stay blocked forever.
       addDependency: (id, dependsOnId) =>
-        set((s) => ({
-          tasks: s.tasks.map((t) =>
-            t.id === id && t.id !== dependsOnId && !t.deps.includes(dependsOnId)
-              ? { ...t, deps: [...t.deps, dependsOnId] }
-              : t,
-          ),
-        })),
+        set((s) => {
+          if (wouldCreateCycle(s.tasks, id, dependsOnId)) return s;
+          return {
+            tasks: s.tasks.map((t) =>
+              t.id === id && !t.deps.includes(dependsOnId) ? { ...t, deps: [...t.deps, dependsOnId] } : t,
+            ),
+          };
+        }),
 
       removeDependency: (id, dependsOnId) =>
         set((s) => ({

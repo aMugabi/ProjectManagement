@@ -2,7 +2,7 @@ import { useEffect, useRef, type KeyboardEvent } from 'react';
 import type { Priority, Recurring, Status } from '../types';
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
-import { projectById, depTitles, subtaskProgress, isDepBlocked } from '../lib/selectors';
+import { projectById, depTitles, subtaskProgress, isDepBlocked, wouldCreateCycle } from '../lib/selectors';
 import { advanceRecurrence, dueMeta, formatLongDateShortWeekday, isoToDate } from '../shared/date';
 import { Checkbox } from './shared/Checkbox';
 import s from './Drawer.module.css';
@@ -76,7 +76,7 @@ export function Drawer() {
   const done = task.status === 'done';
   const blocked = isDepBlocked(task, tasks);
   const depCandidates = tasks.filter(
-    (t) => t.id !== task.id && !task.deps.includes(t.id) && !t.deps.includes(task.id),
+    (t) => !task.deps.includes(t.id) && !wouldCreateCycle(tasks, task.id, t.id),
   );
 
   function handleSubKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -203,16 +203,16 @@ export function Drawer() {
             <span className={s.fieldLabel}>Depends on</span>
             <div className={s.depsBox}>
               {task.deps.map((depId) => {
-                const dep = tasks.find((t) => t.id === depId);
-                if (!dep) return null;
+                // A dep on a task that no longer exists still blocks, so it must stay visible and removable.
+                const title = tasks.find((t) => t.id === depId)?.title ?? 'Missing task';
                 return (
                   <span key={depId} className={s.depChip}>
-                    {dep.title}
+                    {title}
                     <button
                       type="button"
                       className={s.depRemove}
                       onClick={() => removeDependency(task.id, depId)}
-                      aria-label={`Remove dependency on "${dep.title}"`}
+                      aria-label={`Remove dependency on "${title}"`}
                     >
                       ×
                     </button>
