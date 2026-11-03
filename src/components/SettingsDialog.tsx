@@ -4,6 +4,7 @@ import { useUiStore } from '../store/uiStore';
 import { CLOUD_ENABLED } from '../lib/cloud';
 import { signOut } from '../lib/auth';
 import { notificationPermission, requestNotificationPermission, type PermissionState } from '../lib/notifications';
+import { disablePush, enablePush, pushStatus, sendTestPush, type PushStatus } from '../lib/push';
 import s from './SettingsDialog.module.css';
 
 const LEAD_OPTIONS = [
@@ -20,6 +21,76 @@ const PERMISSION_TEXT: Record<PermissionState, string> = {
   default: 'Off for this device',
   unsupported: 'Not supported in this browser',
 };
+
+const PUSH_TEXT: Record<PushStatus | 'loading', string> = {
+  loading: 'Checking…',
+  on: 'On for this device — reminders arrive even when Ledger is closed',
+  off: 'Get reminders even when Ledger is closed',
+  'needs-install':
+    'On iPhone and iPad, add Ledger to your Home Screen (Share → Add to Home Screen) and open it from there to turn on push',
+  unsupported: "This browser can't receive push notifications here",
+  blocked: 'Notifications are blocked for this site — allow them in your browser settings',
+  'not-configured': "Push isn't set up on the server yet (VAPID keys — see the README)",
+};
+
+function PushSettings() {
+  const [status, setStatus] = useState<PushStatus | 'loading'>('loading');
+  const [busy, setBusy] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    void pushStatus().then((st) => live && setStatus(st));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  async function run(action: () => Promise<PushStatus>) {
+    setBusy(true);
+    setTestResult(null);
+    try {
+      setStatus(await action());
+    } catch {
+      setStatus('off');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function test() {
+    setBusy(true);
+    const ok = await sendTestPush().catch(() => false);
+    setTestResult(ok ? 'Sent — it should appear in a moment' : "Couldn't send a test notification");
+    setBusy(false);
+  }
+
+  return (
+    <div className={s.row}>
+      <span>
+        Push notifications
+        <small>{testResult ?? PUSH_TEXT[status]}</small>
+      </span>
+      <span className={s.buttons}>
+        {status === 'off' && (
+          <button type="button" className={s.button} disabled={busy} onClick={() => void run(enablePush)}>
+            Turn on
+          </button>
+        )}
+        {status === 'on' && (
+          <>
+            <button type="button" className={s.buttonSecondary} disabled={busy} onClick={() => void test()}>
+              Send test
+            </button>
+            <button type="button" className={s.buttonSecondary} disabled={busy} onClick={() => void run(disablePush)}>
+              Turn off
+            </button>
+          </>
+        )}
+      </span>
+    </div>
+  );
+}
 
 export function SettingsDialog() {
   const open = useUiStore((st) => st.settingsOpen);
@@ -120,6 +191,7 @@ function SettingsPanel({ close }: { close: () => void }) {
               </button>
             )}
           </div>
+          {CLOUD_ENABLED && <PushSettings />}
           {!CLOUD_ENABLED && (
             <p className={s.note}>
               This is the local-only version, so reminders appear while Ledger is open (or in a background tab). Use the

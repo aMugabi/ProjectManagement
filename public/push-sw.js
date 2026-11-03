@@ -1,6 +1,26 @@
 // Imported into the generated service worker (see workbox.importScripts in vite.config.ts).
-// Handles reminder notification clicks: focus an open Ledger window and send it to the task,
-// or open a new window there.
+
+// Push messages from api/reminders.ts and api/push.ts: { title, body, tag, path }.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : '' };
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Ledger', {
+      body: data.body || '',
+      tag: data.tag,
+      icon: new URL('pwa-192x192.png', self.registration.scope).href,
+      badge: new URL('pwa-192x192.png', self.registration.scope).href,
+      data: { path: data.path || '' },
+    }),
+  );
+});
+
+// Notification clicks (push and in-app reminders): focus an open Ledger window and send it to
+// the task, or open a new window there.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const path = event.notification.data?.path ?? '';

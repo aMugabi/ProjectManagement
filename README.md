@@ -70,6 +70,40 @@ offline and edits on other devices are both kept.
 — have no API, so they skip the password gate, keep data in that browser only, and show
 "Local only · this browser" in the sidebar. Use `vercel dev` to run the cloud build locally.
 
+## Reminders and notifications
+
+Ledger warns you about tasks that are overdue, due today or coming up:
+
+- **Daily digest** at a time you choose (Settings → Reminders): what's due today, plus
+  anything overdue.
+- **Lead reminders** for each task inside its reminder window: by default 1 day before, or
+  whatever you pick under *Remind me* in the task's details.
+- **Pop-ups** inside the app, with Open task, Snooze 1h and Dismiss, plus a 🔔 in the header
+  listing everything overdue, due today and coming up across all workspaces.
+- **System notifications** while Ledger is open in a background tab, once you allow them
+  (Settings → Notifications, or the bell).
+- **Push notifications** that arrive even when Ledger is closed (Vercel deploy only, after the
+  setup below). On iPhone and iPad, add Ledger to the Home Screen first and open it from there.
+  This needs iOS 16.4 or later.
+
+### Push setup (Vercel)
+
+1. Generate VAPID keys: `npx web-push generate-vapid-keys`. Add the environment variables
+   `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (a `mailto:` address) to the
+   Vercel project.
+2. In the [Upstash console](https://console.upstash.com/qstash), open **QStash** and copy the
+   signing keys into `QSTASH_CURRENT_SIGNING_KEY` and `QSTASH_NEXT_SIGNING_KEY`.
+3. Create a QStash **schedule** that sends a `POST` to `https://<your-app>/api/reminders`
+   with the cron `*/15 * * * *`. Reminders then arrive within 15 minutes of the digest time.
+   That is 96 messages a day, inside QStash's free tier. Vercel's own Hobby cron can only run
+   once a day, which is why it isn't used here.
+4. Redeploy, then go to Settings → Push notifications → **Turn on** on each device, and use
+   **Send test** to check it works.
+
+Optional: set `REMINDERS_SECRET` to call `/api/reminders` yourself with
+`Authorization: Bearer <secret>`, for example to test it, or from another scheduler.
+Each reminder is pushed at most once.
+
 ## Stack
 
 - **React Router** — screens and filters are linkable via the URL.

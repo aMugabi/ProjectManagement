@@ -1,11 +1,7 @@
 import { mergeStates } from '../src/shared/merge.js';
 import { normalizeState, STATE_VERSION, type StoredState } from '../src/shared/state.js';
+import { STATE_KEY, STATE_REV_KEY as REV_KEY } from './_lib/keys.js';
 import { kv, requireSession } from './_lib/session.js';
-
-// The single-user task/project blob that src/lib/cloudStorage.ts reads and writes.
-const STATE_KEY = 'ledger:state';
-// Bumped on every write, so concurrent uploads can't silently overwrite each other's merge.
-const REV_KEY = 'ledger:state-rev';
 
 // Compare-and-set: write only if nobody else wrote since we read.
 const CAS_SCRIPT = `

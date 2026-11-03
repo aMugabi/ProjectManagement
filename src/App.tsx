@@ -13,6 +13,8 @@ import { useUiStore } from './store/uiStore';
 import { useTaskStore } from './store/taskStore';
 import { useReminders } from './lib/useReminders';
 import { openTask } from './lib/openTask';
+import { CLOUD_ENABLED } from './lib/cloud';
+import { refreshPushSubscription } from './lib/push';
 import s from './App.module.css';
 
 export default function App() {
@@ -43,6 +45,11 @@ export default function App() {
     if (useTaskStore.persist.hasHydrated()) open();
     else return useTaskStore.persist.onFinishHydration(open);
   }, [linkedTask, linkedWorkspace, setParams]);
+
+  // Keep this device's push subscription registered with the server (cloud builds only).
+  useEffect(() => {
+    if (CLOUD_ENABLED) void refreshPushSubscription().catch(() => undefined);
+  }, []);
 
   // Notification clicks while Ledger is already open arrive from the service worker (public/push-sw.js).
   useEffect(() => {
