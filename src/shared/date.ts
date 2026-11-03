@@ -71,3 +71,12 @@ export function dueMeta(dueDate: string, status: Status): DueMeta {
   else label = formatShortDate(isoToDate(dueDate));
   return { label, overdue, dueToday };
 }
+
+/** Whole days from one ISO date to another, independent of the machine's time zone. */
+export function daysBetween(fromIso: string, toIso: string): number {
+  const utc = (iso: string) => {
+    const [y, m, d] = iso.split('-').map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((utc(toIso) - utc(fromIso)) / DAY);
+}

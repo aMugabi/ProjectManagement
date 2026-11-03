@@ -38,6 +38,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Notification click (and, on cloud builds, push) handlers live in public/push-sw.js.
+        importScripts: ['push-sw.js'],
         globPatterns: ['**/*.{js,css,html,svg,png}'],
         // Only GitHub Pages' deep-link redirect shim; never useful offline.
         globIgnores: ['404.html'],

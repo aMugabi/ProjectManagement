@@ -191,4 +191,8 @@
   .viewSwitch {
     order: 2;
   }
+  .bellSlot {
+    order: 3;
+    margin-left: auto;
+  }
 }

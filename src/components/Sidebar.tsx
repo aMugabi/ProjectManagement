@@ -31,6 +31,7 @@ export function Sidebar() {
   const openComposer = useUiStore((st) => st.openComposer);
   const sidebarOpen = useUiStore((st) => st.sidebarOpen);
   const closeSidebar = useUiStore((st) => st.closeSidebar);
+  const openSettings = useUiStore((st) => st.openSettings);
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
@@ -339,11 +340,16 @@ export function Sidebar() {
             </div>
           </>
         )}
-        <button type="button" className={s.footer} onClick={() => setWorkspaceMenuOpen((v) => !v)}>
-          <div className={s.avatar}>JM</div>
-          <span className={s.footerLabel}>{activeWorkspace?.name ?? 'Workspace'}</span>
-          <span className={s.footerChevron}>{workspaceMenuOpen ? '▾' : '▴'}</span>
-        </button>
+        <div className={s.footerRow}>
+          <button type="button" className={s.footer} onClick={() => setWorkspaceMenuOpen((v) => !v)}>
+            <div className={s.avatar}>JM</div>
+            <span className={s.footerLabel}>{activeWorkspace?.name ?? 'Workspace'}</span>
+            <span className={s.footerChevron}>{workspaceMenuOpen ? '▾' : '▴'}</span>
+          </button>
+          <button type="button" className={s.settingsBtn} onClick={openSettings} aria-label="Settings" title="Settings">
+            ⚙
+          </button>
+        </div>
         {!CLOUD_ENABLED && (
           <div className={s.localOnly} title="This build has no cloud sync: tasks are saved in this browser only.">
             Local only · this browser

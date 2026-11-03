@@ -212,9 +212,15 @@
   position: relative;
 }
 
-.footer {
-  width: 100%;
+.footerRow {
+  display: flex;
+  align-items: stretch;
   border-top: 1px solid var(--border);
+}
+.footer {
+  flex: 1;
+  min-width: 0;
+  border-top: none;
   padding: 12px 8px 10px;
   display: flex;
   align-items: center;
@@ -255,6 +261,19 @@
   flex: none;
   font-size: 10px;
   color: var(--text-faint);
+}
+.settingsBtn {
+  flex: none;
+  width: 36px;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.settingsBtn:hover {
+  background: var(--surface-selected);
+  color: var(--text);
 }
 .localOnly {
   padding: 0 8px 10px 43px;

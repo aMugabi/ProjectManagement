@@ -27,6 +27,20 @@ const RECUR_OPTIONS: { value: string; label: string }[] = [
   { value: 'yearly', label: 'Every year' },
 ];
 
+// Days before the due date for a task's lead reminder ('default' follows Settings). Every open task
+// due today is in the daily digest regardless, so 'On the day only' is the minimum.
+const REMIND_OPTIONS: { value: string; label: string }[] = [
+  { value: '0', label: 'On the day only' },
+  { value: '1', label: '1 day before' },
+  { value: '2', label: '2 days before' },
+  { value: '3', label: '3 days before' },
+  { value: '7', label: '1 week before' },
+];
+
+function leadLabel(days: number): string {
+  return REMIND_OPTIONS.find((o) => o.value === String(days))?.label.toLowerCase() ?? `${days} days before`;
+}
+
 export function Drawer() {
   const openId = useUiStore((st) => st.openId);
   const closeDrawer = useUiStore((st) => st.closeDrawer);
@@ -41,6 +55,8 @@ export function Drawer() {
     setProject,
     setDueDate,
     setRecurring,
+    setRemindDaysBefore,
+    reminders,
     setTitle,
     setNotes,
     addSubtask,
@@ -198,6 +214,24 @@ export function Drawer() {
                   next {formatLongDateShortWeekday(isoToDate(advanceRecurrence(task.dueDate, task.recurring)))}
                 </span>
               )}
+            </div>
+
+            <span className={s.fieldLabel}>Remind me</span>
+            <div className={s.dueEditRow}>
+              <select
+                className={s.select}
+                value={task.remindDaysBefore === undefined ? 'default' : String(task.remindDaysBefore ?? 0)}
+                onChange={(e) =>
+                  setRemindDaysBefore(task.id, e.target.value === 'default' ? undefined : Number(e.target.value))
+                }
+              >
+                <option value="default">Default ({leadLabel(reminders.defaultLeadDays)})</option>
+                {REMIND_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <span className={s.fieldLabel}>Depends on</span>

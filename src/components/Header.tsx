@@ -6,6 +6,7 @@ import { useFilters } from '../lib/useFilters';
 import { visibleTasks, withoutDone } from '../lib/selectors';
 import { offsetFromToday, formatLongDate, today } from '../shared/date';
 import s from './Header.module.css';
+import { RemindersBell } from './RemindersBell';
 
 const PRIORITIES = [
   { id: 'high', label: 'High' },
@@ -79,6 +80,9 @@ export function Header() {
           </button>
         )}
         <div className={s.right}>
+          <div className={s.bellSlot}>
+            <RemindersBell />
+          </div>
           <div className={s.search}>
             <span className={s.glyph}>/</span>
             <input

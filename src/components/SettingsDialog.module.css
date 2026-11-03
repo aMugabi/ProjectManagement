@@ -1,0 +1,129 @@
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(28, 27, 25, 0.2);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 10vh;
+}
+
+.dialog {
+  width: 520px;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  box-shadow: 0 26px 60px rgba(28, 27, 25, 0.16);
+  padding: 18px 22px 10px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.close {
+  border: none;
+  background: none;
+  font-size: 20px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.section {
+  padding: 10px 0;
+}
+.section + .section {
+  border-top: 1px solid var(--border-hairline);
+}
+.sectionLabel {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 0;
+  font-size: 13px;
+  color: var(--text);
+}
+.row small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.input {
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 12.5px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font-family: inherit;
+}
+
+.buttons {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+.button,
+.buttonSecondary {
+  flex: none;
+  border-radius: 8px;
+  padding: 6px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.button {
+  border: none;
+  background: var(--accent);
+  color: var(--surface);
+}
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.buttonSecondary {
+  border: 1px solid var(--border-input);
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+}
+
+.note {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+  .scrim {
+    padding-top: 0;
+    align-items: stretch;
+  }
+  .dialog {
+    width: 100%;
+    max-height: none;
+    border-radius: 0;
+  }
+}

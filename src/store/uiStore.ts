@@ -34,6 +34,10 @@ interface UiStore {
 
   subDraft: string;
   setSubDraft: (v: string) => void;
+
+  settingsOpen: boolean;
+  openSettings: () => void;
+  closeSettings: () => void;
 }
 
 export const useUiStore = create<UiStore>((set) => ({
@@ -69,4 +73,8 @@ export const useUiStore = create<UiStore>((set) => ({
 
   subDraft: '',
   setSubDraft: (v) => set({ subDraft: v }),
+
+  settingsOpen: false,
+  openSettings: () => set({ settingsOpen: true, sidebarOpen: false }),
+  closeSettings: () => set({ settingsOpen: false }),
 }));
