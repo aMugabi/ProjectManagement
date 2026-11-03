@@ -1,10 +1,11 @@
 import { Ratelimit } from '@upstash/ratelimit';
+import { LOGIN_ALL_PREFIX, LOGIN_IP_PREFIX } from './_lib/keys.js';
 import { isLegacyHash, verifyPassword } from './_lib/password.js';
 import { bearerToken, createSession, kv, requireSession, revokeAllSessions, revokeSession } from './_lib/session.js';
 
 // 5 attempts per 15 minutes per IP, plus a global cap so rotating IPs can't brute-force either.
-const perIp = new Ratelimit({ redis: kv, limiter: Ratelimit.slidingWindow(5, '15 m'), prefix: 'ledger:login-ip' });
-const global = new Ratelimit({ redis: kv, limiter: Ratelimit.slidingWindow(50, '1 h'), prefix: 'ledger:login-all' });
+const perIp = new Ratelimit({ redis: kv, limiter: Ratelimit.slidingWindow(5, '15 m'), prefix: LOGIN_IP_PREFIX });
+const global = new Ratelimit({ redis: kv, limiter: Ratelimit.slidingWindow(50, '1 h'), prefix: LOGIN_ALL_PREFIX });
 
 function clientIp(req: any): string {
   const forwarded = req.headers?.['x-forwarded-for'];

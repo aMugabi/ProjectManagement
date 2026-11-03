@@ -1,11 +1,11 @@
 import { Redis } from '@upstash/redis';
 import { createHash, randomBytes } from 'node:crypto';
+import { SESSION_PREFIX } from './keys.js';
 
 export const kv = Redis.fromEnv();
 
 /** Sessions last 30 days and renew on every use. Only a hash of the token is stored. */
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
-const SESSION_PREFIX = 'ledger:session:';
 
 function sessionKey(token: string): string {
   return SESSION_PREFIX + createHash('sha256').update(token).digest('hex');
