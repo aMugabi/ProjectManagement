@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Project, Task } from '../types';
 import { mergeStates } from './merge';
-import { normalizeState, type SyncedState } from './state';
+import { normalizeState, ownEntry, type SyncedState } from './state';
 
 function task(id: string, updatedAt: number, extra: Partial<Task> = {}): Task {
   return {
@@ -105,6 +105,18 @@ describe('mergeStates', () => {
     const merged = mergeStates(s, s, 'default');
     expect(merged.projects).toEqual([]);
     expect(merged.workspaceData.work.projects.map((p) => p.id)).toEqual(['p']);
+  });
+
+  it("handles workspace ids that collide with Object built-ins (e.g. a workspace named 'Constructor')", () => {
+    const workspaces = [
+      { id: 'default', name: 'Home', updatedAt: 1 },
+      { id: 'constructor', name: 'Constructor', updatedAt: 2 },
+    ];
+    const local = state([task('h', 1)], { workspaces, workspaceData: { constructor: { projects: [], tasks: [task('c', 1)] } } });
+    const remote = state([task('h', 1)]); // the cloud hasn't seen the new workspace yet
+    const merged = mergeStates(local, remote, 'default');
+    expect(ownEntry(merged.workspaceData, 'constructor')?.tasks.map((t) => t.id)).toEqual(['c']);
+    expect(mergeStates(remote, local, 'constructor').tasks.map((t) => t.id)).toEqual(['c']);
   });
 
   it('prunes tombstones older than 60 days', () => {

@@ -28,7 +28,8 @@ async function authorised(request: Request, rawBody: string): Promise<boolean> {
   const nextSigningKey = process.env.QSTASH_NEXT_SIGNING_KEY;
   if (!signature || !currentSigningKey || !nextSigningKey) return false;
   try {
-    return await new Receiver({ currentSigningKey, nextSigningKey }).verify({
+    // devMode pinned off: the library's dev mode would accept signatures from its public dev keys.
+    return await new Receiver({ currentSigningKey, nextSigningKey, devMode: false }).verify({
       signature,
       body: rawBody,
       clockTolerance: 30,

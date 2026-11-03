@@ -97,6 +97,14 @@ export function normalizeState(raw: unknown, now = Date.now()): SyncedState {
   };
 }
 
+/**
+ * Own-property lookup for workspace-keyed records. Workspace ids come from user-typed names, so a
+ * plain `record[id]` would return built-ins for ids like 'constructor' instead of undefined.
+ */
+export function ownEntry<T>(record: Record<string, T>, key: string): T | undefined {
+  return Object.hasOwn(record, key) ? record[key] : undefined;
+}
+
 /** Every workspace's data keyed by workspace id, regardless of which one is active. */
 export function allWorkspaceData(s: SyncedState): Record<string, WorkspaceSnapshot> {
   return { ...s.workspaceData, [s.activeWorkspaceId]: { projects: s.projects, tasks: s.tasks } };

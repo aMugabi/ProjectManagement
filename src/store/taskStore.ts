@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { Priority, Project, Recurring, ReminderSettings, Status, Task, Workspace, WorkspaceSnapshot } from '../types';
 import { buildSeedTasks, PROJECTS } from '../data/seed';
 import { advanceRecurrence } from '../shared/date';
-import { DEFAULT_REMINDERS, DEFAULT_WORKSPACE, normalizeState, STATE_VERSION, stripDeps, type SyncedState } from '../shared/state';
+import { DEFAULT_REMINDERS, DEFAULT_WORKSPACE, normalizeState, ownEntry, STATE_VERSION, stripDeps, type SyncedState } from '../shared/state';
 import { CLOUD_ENABLED } from '../lib/cloud';
 import { createCloudStorage, onRemoteState } from '../lib/cloudStorage';
 import { wouldCreateCycle } from '../lib/selectors';
@@ -127,7 +127,7 @@ export const useTaskStore = create<TaskStore>()(
       setActiveWorkspace: (id) =>
         set((s) => {
           if (id === s.activeWorkspaceId || !s.workspaces.some((w) => w.id === id)) return s;
-          const incoming: WorkspaceSnapshot = s.workspaceData[id] ?? { projects: [], tasks: [] };
+          const incoming: WorkspaceSnapshot = ownEntry(s.workspaceData, id) ?? { projects: [], tasks: [] };
           const workspaceData = { ...s.workspaceData };
           delete workspaceData[id];
           workspaceData[s.activeWorkspaceId] = { projects: s.projects, tasks: s.tasks };

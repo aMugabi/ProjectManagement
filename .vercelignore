@@ -1,0 +1,2 @@
+# Tests run in CI, not as Vercel functions.
+api/**/*.test.ts

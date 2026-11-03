@@ -4,7 +4,7 @@
  * Used by the app on load and by /api/state on every upload.
  */
 import type { WorkspaceSnapshot } from '../types.js';
-import { allWorkspaceData, normalizeState, stripMissingDeps, type SyncedState } from './state.js';
+import { allWorkspaceData, normalizeState, ownEntry, stripMissingDeps, type SyncedState } from './state.js';
 
 interface Stamped {
   id: string;
@@ -40,8 +40,8 @@ export function mergeStates(baseRaw: unknown, incomingRaw: unknown, activeWorksp
 
   const data: Record<string, WorkspaceSnapshot> = {};
   for (const w of workspaces) {
-    const b = baseData[w.id] ?? empty;
-    const i = incomingData[w.id] ?? empty;
+    const b = ownEntry(baseData, w.id) ?? empty;
+    const i = ownEntry(incomingData, w.id) ?? empty;
     data[w.id] = {
       projects: mergeItems(`project:${w.id}`, b.projects, i.projects, deleted),
       tasks: stripMissingDeps(mergeItems(`task:${w.id}`, b.tasks, i.tasks, deleted)),
@@ -50,7 +50,8 @@ export function mergeStates(baseRaw: unknown, incomingRaw: unknown, activeWorksp
 
   const wanted = activeWorkspaceId ?? incoming.activeWorkspaceId;
   const active = workspaces.some((w) => w.id === wanted) ? wanted : (workspaces[0]?.id ?? base.activeWorkspaceId);
-  const { [active]: activeData = empty, ...workspaceData } = data;
+  const activeData = ownEntry(data, active) ?? empty;
+  const workspaceData = Object.fromEntries(Object.entries(data).filter(([id]) => id !== active));
 
   return normalizeState({
     tasks: activeData.tasks,

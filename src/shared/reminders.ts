@@ -6,7 +6,7 @@
  */
 import type { Task, Workspace } from '../types.js';
 import { daysBetween } from './date.js';
-import { allWorkspaceData, type SyncedState } from './state.js';
+import { allWorkspaceData, ownEntry, type SyncedState } from './state.js';
 
 /** The current calendar date and minute of the day, in the user's time zone. */
 export interface LocalNow {
@@ -78,7 +78,7 @@ export function attentionTasks(state: SyncedState, todayIso: string): Attention 
   const result: Attention = { overdue: [], today: [], upcoming: [] };
   const data = allWorkspaceData(state);
   for (const workspace of state.workspaces) {
-    const { tasks = [], projects = [] } = data[workspace.id] ?? {};
+    const { tasks = [], projects = [] } = ownEntry(data, workspace.id) ?? {};
     const projectNames = new Map(projects.map((p) => [p.id, p.name]));
     for (const task of tasks) {
       if (task.status === 'done') continue;
