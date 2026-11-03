@@ -19,9 +19,9 @@ const ENDPOINT = 'https://push.example.test/device-1';
  * Stands in for the browser's push service (headless browsers can't reach a real one). The fake
  * subscription survives reloads via localStorage, like a real one would.
  */
-async function fakePushService(page: Page, permission: 'granted' | 'denied' = 'granted') {
+async function fakePushService(page: Page, permission: 'granted' | 'denied' = 'granted', failWith?: string) {
   await page.addInitScript(
-    ({ endpoint, permission }) => {
+    ({ endpoint, permission, failWith }) => {
       const make = () => ({
         endpoint,
         toJSON: () => ({ endpoint, keys: { p256dh: 'BKeyForTests', auth: 'authsecret' } }),
@@ -33,6 +33,7 @@ async function fakePushService(page: Page, permission: 'granted' | 'denied' = 'g
       PushManager.prototype.getSubscription = async () =>
         (localStorage.getItem('__fake_push_sub') ? make() : null) as unknown as PushSubscription;
       PushManager.prototype.subscribe = async (opts?: PushSubscriptionOptionsInit) => {
+        if (failWith) throw new DOMException(failWith, 'AbortError');
         (window as unknown as { __keyLength: number }).__keyLength = (opts?.applicationServerKey as Uint8Array).length;
         localStorage.setItem('__fake_push_sub', '1');
         return make() as unknown as PushSubscription;
@@ -40,7 +41,7 @@ async function fakePushService(page: Page, permission: 'granted' | 'denied' = 'g
       Object.defineProperty(Notification, 'permission', { get: () => (permission === 'denied' ? 'denied' : 'default'), configurable: true });
       Notification.requestPermission = async () => permission;
     },
-    { endpoint: ENDPOINT, permission },
+    { endpoint: ENDPOINT, permission, failWith },
   );
 }
 
@@ -107,6 +108,14 @@ test.describe('cloud build: push notification settings', () => {
     const dialog = await openPushRow(page);
     await dialog.getByRole('button', { name: 'Turn on' }).last().click();
     await expect(dialog).toContainText("Couldn't turn on push: the server couldn't save this device (500)");
+  });
+
+  test("explains what to do when the browser's push service refuses (e.g. Brave)", async ({ page }) => {
+    await fakePushService(page, 'granted', 'Registration failed - push service error');
+    const dialog = await openPushRow(page);
+    await dialog.getByRole('button', { name: 'Turn on' }).last().click();
+    await expect(dialog).toContainText('this browser has no working push service');
+    await expect(dialog).toContainText('Use Google services for push messaging');
   });
 
   test('explains when notifications are blocked', async ({ page }) => {

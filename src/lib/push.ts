@@ -74,9 +74,19 @@ export async function enablePush(): Promise<PushStatus> {
   const { publicKey } = (await res.json()) as { publicKey: string | null };
   if (!publicKey) return 'not-configured';
 
-  const sub =
-    (await reg.pushManager.getSubscription()) ??
-    (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) }));
+  let sub = await reg.pushManager.getSubscription();
+  try {
+    sub ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
+  } catch (e) {
+    // Chromium-family browsers say this when they have no working push service: Brave with
+    // Google push messaging turned off, Linux/"ungoogled" Chromium builds, or a network blocking it.
+    if (e instanceof Error && /push service/i.test(e.message)) {
+      throw new Error(
+        "this browser has no working push service. In Brave, turn on \"Use Google services for push messaging\" (brave://settings/privacy) and restart; otherwise use Chrome, Edge, Firefox or your phone, or try another network",
+      );
+    }
+    throw e;
+  }
   const saved = await api('POST', '', { subscription: sub.toJSON() });
   if (!saved.ok) throw new Error(`the server couldn't save this device (${saved.status})`);
   setActive(true);
