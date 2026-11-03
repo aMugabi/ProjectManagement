@@ -63,13 +63,14 @@ export async function pushStatus(): Promise<PushStatus> {
   return sub ? 'on' : 'off';
 }
 
+/** Turns push on for this device. Throws with a readable reason if the browser or server refuses. */
 export async function enablePush(): Promise<PushStatus> {
   const reg = await registration();
   if (!reg) return 'unsupported';
   if ((await requestNotificationPermission()) !== 'granted') return 'blocked';
 
   const res = await api('GET');
-  if (!res.ok) return 'off';
+  if (!res.ok) throw new Error(`the server answered ${res.status}`);
   const { publicKey } = (await res.json()) as { publicKey: string | null };
   if (!publicKey) return 'not-configured';
 
@@ -77,7 +78,7 @@ export async function enablePush(): Promise<PushStatus> {
     (await reg.pushManager.getSubscription()) ??
     (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) }));
   const saved = await api('POST', '', { subscription: sub.toJSON() });
-  if (!saved.ok) return 'off';
+  if (!saved.ok) throw new Error(`the server couldn't save this device (${saved.status})`);
   setActive(true);
   return 'on';
 }

@@ -29,6 +29,8 @@ export class FakeCloud {
   down = false;
   /** Simulates a server error on every request. */
   broken = false;
+  /** Simulates the server failing to save a push subscription. */
+  failPushSave = false;
 
   async install(context: BrowserContext) {
     await context.route('**/api/**', (route) => this.handle(route));
@@ -85,6 +87,7 @@ export class FakeCloud {
         return this.json(route, 200, { sent: this.subs.has(body.endpoint) ? 1 : 0 });
       }
       if (method === 'POST') {
+        if (this.failPushSave) return this.json(route, 500, { error: 'boom' });
         this.subs.set(body.subscription.endpoint, body.subscription);
         return this.json(route, 200, { ok: true });
       }

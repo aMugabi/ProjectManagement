@@ -101,6 +101,14 @@ test.describe('cloud build: push notification settings', () => {
     await expect(dialog).toContainText("Push isn't set up on the server yet");
   });
 
+  test('says why when turning push on fails, instead of silently showing "Turn on" again', async ({ page }) => {
+    cloud.failPushSave = true;
+    await fakePushService(page);
+    const dialog = await openPushRow(page);
+    await dialog.getByRole('button', { name: 'Turn on' }).last().click();
+    await expect(dialog).toContainText("Couldn't turn on push: the server couldn't save this device (500)");
+  });
+
   test('explains when notifications are blocked', async ({ page }) => {
     await fakePushService(page, 'denied');
     const dialog = await openPushRow(page);

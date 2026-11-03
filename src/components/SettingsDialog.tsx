@@ -16,7 +16,7 @@ const LEAD_OPTIONS = [
 ];
 
 const PERMISSION_TEXT: Record<PermissionState, string> = {
-  granted: 'On for this device',
+  granted: "On for this device — to turn them off, change this site's notification setting in your browser or phone settings",
   denied: 'Blocked — allow notifications for this site in your browser settings',
   default: 'Off for this device',
   unsupported: 'Not supported in this browser',
@@ -36,7 +36,8 @@ const PUSH_TEXT: Record<PushStatus | 'loading', string> = {
 function PushSettings() {
   const [status, setStatus] = useState<PushStatus | 'loading'>('loading');
   const [busy, setBusy] = useState(false);
-  const [testResult, setTestResult] = useState<string | null>(null);
+  // Outcome of the last action (test sent, or why turning on failed); replaces the status line.
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -48,11 +49,13 @@ function PushSettings() {
 
   async function run(action: () => Promise<PushStatus>) {
     setBusy(true);
-    setTestResult(null);
+    setMessage(null);
     try {
       setStatus(await action());
-    } catch {
+    } catch (e) {
+      // Say why, rather than silently showing "Turn on" again.
       setStatus('off');
+      setMessage(`Couldn't turn on push: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -61,7 +64,7 @@ function PushSettings() {
   async function test() {
     setBusy(true);
     const ok = await sendTestPush().catch(() => false);
-    setTestResult(ok ? 'Sent — it should appear in a moment' : "Couldn't send a test notification");
+    setMessage(ok ? 'Sent — it should appear in a moment' : "Couldn't send a test notification");
     setBusy(false);
   }
 
@@ -69,7 +72,7 @@ function PushSettings() {
     <div className={s.row}>
       <span>
         Push notifications
-        <small>{testResult ?? PUSH_TEXT[status]}</small>
+        <small>{message ?? PUSH_TEXT[status]}</small>
       </span>
       <span className={s.buttons}>
         {status === 'off' && (
