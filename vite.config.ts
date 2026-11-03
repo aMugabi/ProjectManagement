@@ -38,6 +38,12 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // A new deploy's service worker takes over at once (and the page reloads onto it via
+        // registerSW). vite-plugin-pwa only sets these automatically when it injects the
+        // registration itself; with injectRegister: false, new versions sat "waiting" until every
+        // Ledger tab/window closed — so installed apps kept showing the old version.
+        skipWaiting: true,
+        clientsClaim: true,
         // Notification click (and, on cloud builds, push) handlers live in public/push-sw.js.
         importScripts: ['push-sw.js'],
         globPatterns: ['**/*.{js,css,html,svg,png}'],
