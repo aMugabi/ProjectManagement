@@ -1,9 +1,6 @@
-import { Redis } from '@upstash/redis';
-import { timingSafeEqual } from 'node:crypto';
 import { mergeStates } from '../src/shared/merge.js';
 import { normalizeState, STATE_VERSION, type StoredState } from '../src/shared/state.js';
-
-const kv = Redis.fromEnv();
+import { kv, requireSession } from './_lib/session.js';
 
 // The single-user task/project blob that src/lib/cloudStorage.ts reads and writes.
 const STATE_KEY = 'ledger:state';
@@ -18,12 +15,6 @@ if (redis.call('GET', KEYS[2]) or '0') == ARGV[1] then
   return 1
 end
 return 0`;
-
-function safeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  return bufA.length === bufB.length && timingSafeEqual(bufA, bufB);
-}
 
 function isStoredState(v: unknown): v is StoredState {
   const s = (v as StoredState | null)?.state;
@@ -47,14 +38,7 @@ async function mergeAndSave(incoming: StoredState): Promise<StoredState | null> 
 }
 
 export default async function handler(req: any, res: any) {
-  const expected = process.env.AUTH_PASSWORD_HASH;
-  const auth = req.headers.authorization ?? '';
-  const token = typeof auth === 'string' && auth.startsWith('Bearer ') ? auth.slice(7) : '';
-
-  if (!expected || !token || !safeEqual(token, expected)) {
-    res.status(401).json({ error: 'unauthorized' });
-    return;
-  }
+  if (!(await requireSession(req, res))) return;
 
   if (req.method === 'GET') {
     const data = await kv.get(STATE_KEY);

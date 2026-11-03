@@ -50,18 +50,25 @@ devices. To enable it on a Vercel deployment:
 1. In the Vercel project, open **Storage → Create Database** (or **Marketplace**)
    and add an **Upstash Redis** store, connected to this project. That injects
    `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` automatically.
-2. Pick a password and hash it — in a browser console, run:
-   ```js
-   crypto.subtle.digest('SHA-256', new TextEncoder().encode('your-password'))
-     .then(b => console.log([...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('')))
+2. Pick a password and hash it (salted scrypt; the password is prompted for and not echoed):
+   ```bash
+   npm run hash-password
    ```
-3. Add that hash as the `AUTH_PASSWORD_HASH` environment variable on the Vercel
-   project, then redeploy. The password itself is never stored anywhere —
-   `api/state.ts` only ever sees and compares the hash.
+3. Add the printed `scrypt$…` value as the `AUTH_PASSWORD_HASH` environment variable on the
+   Vercel project, then redeploy. The password itself is never stored anywhere.
 
-Without these set, the app still works from `localStorage` alone — `/api/state`
-just won't be reachable (or, locally, `npm run dev` doesn't run it at all; use
-`vercel dev` to exercise the API routes locally).
+Signing in sends the password once to `/api/login`, which is rate-limited (5 attempts per
+15 minutes per IP, 50 per hour overall) and returns a random session token. Only that token
+is kept in the browser; sessions last 30 days from last use and can be signed out on every
+device from Settings. A legacy bare SHA-256 `AUTH_PASSWORD_HASH` still works (with a warning
+in the function logs) until you replace it.
+
+Sync merges task by task (newest edit wins, deletions are remembered), so edits made
+offline and edits on other devices are both kept.
+
+**Local-only mode.** Builds outside Vercel — the GitHub Pages deploy and plain `npm run dev`
+— have no API, so they skip the password gate, keep data in that browser only, and show
+"Local only · this browser" in the sidebar. Use `vercel dev` to run the cloud build locally.
 
 ## Stack
 

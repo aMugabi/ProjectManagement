@@ -1,5 +1,5 @@
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
-import { getAuthToken } from './auth';
+import { getAuthToken, handleUnauthorized } from './auth';
 import { CLOUD_ENABLED } from './cloud';
 import { mergeStates } from '../shared/merge';
 import { normalizeState, STATE_VERSION, type StoredState, type SyncedState } from '../shared/state';
@@ -57,6 +57,7 @@ function isPending(): boolean {
 async function fetchRemote(token: string): Promise<StoredState | null | undefined> {
   try {
     const res = await fetch('/api/state', { headers: { Authorization: `Bearer ${token}` } });
+    if (res.status === 401) handleUnauthorized();
     if (!res.ok) return undefined;
     return (await res.json()) as StoredState | null;
   } catch {
@@ -77,6 +78,7 @@ async function push(name: string) {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(local),
     });
+    if (res.status === 401) handleUnauthorized();
     if (!res.ok) return;
     merged = (await res.json()) as StoredState;
   } catch {

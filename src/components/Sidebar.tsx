@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
+import { CLOUD_ENABLED } from '../lib/cloud';
 import s from './Sidebar.module.css';
 
 const NAV_ITEMS = [
@@ -343,6 +344,11 @@ export function Sidebar() {
           <span className={s.footerLabel}>{activeWorkspace?.name ?? 'Workspace'}</span>
           <span className={s.footerChevron}>{workspaceMenuOpen ? '▾' : '▴'}</span>
         </button>
+        {!CLOUD_ENABLED && (
+          <div className={s.localOnly} title="This build has no cloud sync: tasks are saved in this browser only.">
+            Local only · this browser
+          </div>
+        )}
       </div>
       </aside>
     </>

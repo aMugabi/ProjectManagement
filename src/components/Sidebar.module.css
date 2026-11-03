@@ -256,6 +256,11 @@
   font-size: 10px;
   color: var(--text-faint);
 }
+.localOnly {
+  padding: 0 8px 10px 43px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
 
 .menuScrim {
   position: fixed;

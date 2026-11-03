@@ -3,7 +3,7 @@ import type { Task } from '../types';
 import { normalizeState, STATE_VERSION, type StoredState } from '../shared/state';
 
 vi.mock('./cloud', () => ({ CLOUD_ENABLED: true }));
-vi.mock('./auth', () => ({ getAuthToken: () => 'token' }));
+vi.mock('./auth', () => ({ getAuthToken: () => 'token', handleUnauthorized: () => {} }));
 
 const { createCloudStorage } = await import('./cloudStorage');
 
