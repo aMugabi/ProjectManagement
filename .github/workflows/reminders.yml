@@ -30,6 +30,9 @@ jobs:
             echo "::warning::Reminders skipped: add the REMINDERS_SECRET repository secret (same value as in Vercel)."
             exit 0
           fi
-          curl --fail-with-body --silent --show-error --max-time 60 -X POST \
-            -H "Authorization: Bearer $REMINDERS_SECRET" "$LEDGER_URL/api/reminders"
-          echo
+          # Log only the HTTP status: this repository is public, so its Actions logs are too, and the
+          # response body (counts of due reminders) shouldn't be visible to everyone.
+          status=$(curl --silent --show-error --max-time 60 -o /dev/null -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $REMINDERS_SECRET" "$LEDGER_URL/api/reminders")
+          echo "Reminders endpoint answered HTTP $status"
+          [ "$status" = "200" ] || { echo "::error::Reminders call failed (HTTP $status)"; exit 1; }

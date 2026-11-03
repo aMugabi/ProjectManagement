@@ -26,3 +26,7 @@ playwright-report
 *.njsproj
 *.sln
 *.sw?
+
+# Protected-term sweep (persona skill): character codes only, never committed
+.protected-terms.json
+*.terms.json
