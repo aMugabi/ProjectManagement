@@ -112,7 +112,7 @@ export function Drawer() {
 
   return (
     <div className={s.scrim} onClick={closeDrawer}>
-      <div className={s.panel} onClick={(e) => e.stopPropagation()}>
+      <div className={s.panel} role="dialog" aria-label="Task details" onClick={(e) => e.stopPropagation()}>
         <div className={s.header}>
           <div className={s.metaRow}>
             <span className={s.metaDot} style={{ background: project.color }} />

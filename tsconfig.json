@@ -1,8 +1,27 @@
 {
+  /* Not used by `tsc -b` (no files here). Vercel's api/ function compiler reads only this root
+     config, so it mirrors tsconfig.api.json's environment; without it Vercel defaults to ES2021
+     and no Node types. */
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "module": "nodenext",
+    "skipLibCheck": true
+  },
   "files": [],
   "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" },
-    { "path": "./tsconfig.api.json" }
+    {
+      "path": "./tsconfig.app.json"
+    },
+    {
+      "path": "./tsconfig.node.json"
+    },
+    {
+      "path": "./tsconfig.api.json"
+    },
+    {
+      "path": "./tsconfig.e2e.json"
+    }
   ]
 }

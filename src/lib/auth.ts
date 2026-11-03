@@ -6,10 +6,18 @@ const TOKEN_KEY = 'ledger-session';
 /** Pre-session builds stored the password hash itself; remove it so it doesn't linger. */
 const LEGACY_TOKEN_KEY = 'ledger-auth-token';
 
-/** Fired when the server rejects the session, so the login gate can lock again. */
-export const SIGNED_OUT_EVENT = 'ledger:signed-out';
-
 let authToken: string | null = null;
+const listeners = new Set<() => void>();
+
+/**
+ * Subscribes to sign-in/out changes (for useSyncExternalStore). Reading state this way, rather than
+ * listening for an event, means a 401 that arrives before the login gate mounts still locks the app.
+ */
+export function subscribeAuth(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
 try {
   localStorage.removeItem(LEGACY_TOKEN_KEY);
   authToken = localStorage.getItem(TOKEN_KEY);
@@ -28,6 +36,7 @@ export function isUnlocked(): boolean {
 
 function setToken(token: string | null) {
   authToken = token;
+  for (const listener of listeners) listener();
   try {
     if (token) localStorage.setItem(TOKEN_KEY, token);
     else localStorage.removeItem(TOKEN_KEY);
@@ -58,9 +67,7 @@ export async function login(password: string): Promise<LoginResult> {
 
 /** Called when any /api request answers 401: the session expired or was revoked elsewhere. */
 export function handleUnauthorized() {
-  if (!authToken) return;
-  setToken(null);
-  window.dispatchEvent(new Event(SIGNED_OUT_EVENT));
+  if (authToken) setToken(null);
 }
 
 /** Signs out this device, or every device with `everywhere`. Local data stays in this browser. */
@@ -77,5 +84,4 @@ export async function signOut(everywhere = false): Promise<void> {
     }
   }
   setToken(null);
-  window.dispatchEvent(new Event(SIGNED_OUT_EVENT));
 }
