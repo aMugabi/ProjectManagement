@@ -1,10 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Priority, Project, Recurring, Status, Task, Workspace } from '../types';
+import type { Priority, Project, Recurring, ReminderSettings, Status, Task, Workspace, WorkspaceSnapshot } from '../types';
 import { buildSeedTasks, PROJECTS } from '../data/seed';
 import { advanceRecurrence } from '../shared/date';
-import { createCloudStorage } from '../lib/cloudStorage';
-import { stripDeps, wouldCreateCycle } from '../lib/selectors';
+import { DEFAULT_REMINDERS, DEFAULT_WORKSPACE, normalizeState, STATE_VERSION, stripDeps, type SyncedState } from '../shared/state';
+import { CLOUD_ENABLED } from '../lib/cloud';
+import { createCloudStorage, onRemoteState } from '../lib/cloudStorage';
+import { wouldCreateCycle } from '../lib/selectors';
 
 const PROJECT_COLORS = [
   '#b4674a',
@@ -50,18 +52,15 @@ function completeTask(task: Task): Task {
   return { ...task, status: 'done' };
 }
 
-/** Data for a workspace that isn't currently active — the active workspace's data lives in the top-level tasks/projects fields. */
-interface WorkspaceSnapshot {
-  projects: Project[];
-  tasks: Task[];
+/**
+ * Applies `change` to one task and stamps it, so sync keeps this edit over older copies on
+ * other devices. Every task mutation goes through here (or stamps updatedAt itself).
+ */
+function updateTask(tasks: Task[], id: string, change: (t: Task) => Task): Task[] {
+  return tasks.map((t) => (t.id === id ? { ...change(t), updatedAt: Date.now() } : t));
 }
 
-interface TaskStore {
-  tasks: Task[];
-  projects: Project[];
-  workspaces: Workspace[];
-  activeWorkspaceId: string;
-  workspaceData: Record<string, WorkspaceSnapshot>;
+interface TaskStore extends SyncedState {
   addWorkspace: (name: string) => void;
   renameWorkspace: (id: string, name: string) => void;
   setActiveWorkspace: (id: string) => void;
@@ -74,6 +73,7 @@ interface TaskStore {
   setProject: (id: string, project: string) => void;
   setDueDate: (id: string, dueDate: string) => void;
   setRecurring: (id: string, recurring: Recurring) => void;
+  setRemindDaysBefore: (id: string, days: number | null | undefined) => void;
   setTitle: (id: string, title: string) => void;
   setNotes: (id: string, notes: string) => void;
   addSubtask: (id: string, text: string) => void;
@@ -84,6 +84,7 @@ interface TaskStore {
   removeDependency: (id: string, dependsOnId: string) => void;
   /** Move a task into a board column at a specific position, renumbering that column's order. */
   moveTask: (id: string, destStatus: Status, destColumnOrderedIds: string[]) => void;
+  updateReminders: (patch: Partial<Omit<ReminderSettings, 'updatedAt'>>) => void;
 }
 
 export const useTaskStore = create<TaskStore>()(
@@ -91,9 +92,11 @@ export const useTaskStore = create<TaskStore>()(
     (set) => ({
       tasks: buildSeedTasks(),
       projects: PROJECTS,
-      workspaces: [{ id: 'default', name: 'My Workspace' }],
-      activeWorkspaceId: 'default',
+      workspaces: [DEFAULT_WORKSPACE],
+      activeWorkspaceId: DEFAULT_WORKSPACE.id,
       workspaceData: {},
+      deleted: {},
+      reminders: DEFAULT_REMINDERS,
 
       addWorkspace: (name) =>
         set((s) => {
@@ -103,8 +106,9 @@ export const useTaskStore = create<TaskStore>()(
             trimmed,
             s.workspaces.map((w) => w.id),
           );
+          const workspace: Workspace = { id, name: trimmed, updatedAt: Date.now() };
           return {
-            workspaces: [...s.workspaces, { id, name: trimmed }],
+            workspaces: [...s.workspaces, workspace],
             workspaceData: { ...s.workspaceData, [id]: { projects: [], tasks: [] } },
           };
         }),
@@ -113,7 +117,9 @@ export const useTaskStore = create<TaskStore>()(
         set((s) => {
           const trimmed = name.trim();
           if (!trimmed) return s;
-          return { workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, name: trimmed } : w)) };
+          return {
+            workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, name: trimmed, updatedAt: Date.now() } : w)),
+          };
         }),
 
       // Swaps the top-level tasks/projects for another workspace's data, stashing the outgoing
@@ -121,7 +127,7 @@ export const useTaskStore = create<TaskStore>()(
       setActiveWorkspace: (id) =>
         set((s) => {
           if (id === s.activeWorkspaceId || !s.workspaces.some((w) => w.id === id)) return s;
-          const incoming = s.workspaceData[id] ?? { projects: [], tasks: [] };
+          const incoming: WorkspaceSnapshot = s.workspaceData[id] ?? { projects: [], tasks: [] };
           const workspaceData = { ...s.workspaceData };
           delete workspaceData[id];
           workspaceData[s.activeWorkspaceId] = { projects: s.projects, tasks: s.tasks };
@@ -144,6 +150,7 @@ export const useTaskStore = create<TaskStore>()(
             ),
             name: trimmed,
             color: nextProjectColor(s.projects),
+            updatedAt: Date.now(),
           };
           return { projects: [...s.projects, project] };
         }),
@@ -152,74 +159,65 @@ export const useTaskStore = create<TaskStore>()(
         set((s) => {
           const trimmed = name.trim();
           if (!trimmed) return s;
-          return { projects: s.projects.map((p) => (p.id === id ? { ...p, name: trimmed } : p)) };
+          return {
+            projects: s.projects.map((p) => (p.id === id ? { ...p, name: trimmed, updatedAt: Date.now() } : p)),
+          };
         }),
 
       // Deleting a project also deletes its tasks, and strips them from any
       // remaining task's dependencies so nothing is left blocked on a ghost.
+      // Tombstones stop another device's copy from bringing them back on sync.
       deleteProject: (id) =>
         set((s) => {
+          const now = Date.now();
+          const ws = s.activeWorkspaceId;
           const deletedIds = new Set(s.tasks.filter((t) => t.project === id).map((t) => t.id));
+          const deleted = { ...s.deleted, [`project:${ws}:${id}`]: now };
+          for (const taskId of deletedIds) deleted[`task:${ws}:${taskId}`] = now;
           return {
             projects: s.projects.filter((p) => p.id !== id),
             tasks: stripDeps(
               s.tasks.filter((t) => t.project !== id),
               deletedIds,
             ),
+            deleted,
           };
         }),
 
       toggleDone: (id) =>
         set((s) => ({
-          tasks: s.tasks.map((t) => {
-            if (t.id !== id) return t;
-            return t.status === 'done' ? { ...t, status: 'todo' } : completeTask(t);
-          }),
+          tasks: updateTask(s.tasks, id, (t) => (t.status === 'done' ? { ...t, status: 'todo' } : completeTask(t))),
         })),
 
       setStatus: (id, status) =>
         set((s) => ({
-          tasks: s.tasks.map((t) => {
-            if (t.id !== id) return t;
-            return status === 'done' ? completeTask(t) : { ...t, status };
-          }),
+          tasks: updateTask(s.tasks, id, (t) => (status === 'done' ? completeTask(t) : { ...t, status })),
         })),
 
-      setPriority: (id, priority) =>
-        set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, priority } : t)) })),
+      setPriority: (id, priority) => set((s) => ({ tasks: updateTask(s.tasks, id, (t) => ({ ...t, priority })) })),
 
-      setProject: (id, project) =>
-        set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, project } : t)) })),
+      setProject: (id, project) => set((s) => ({ tasks: updateTask(s.tasks, id, (t) => ({ ...t, project })) })),
 
-      setDueDate: (id, dueDate) =>
-        set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, dueDate } : t)) })),
+      setDueDate: (id, dueDate) => set((s) => ({ tasks: updateTask(s.tasks, id, (t) => ({ ...t, dueDate })) })),
 
-      setRecurring: (id, recurring) =>
-        set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, recurring } : t)) })),
+      setRecurring: (id, recurring) => set((s) => ({ tasks: updateTask(s.tasks, id, (t) => ({ ...t, recurring })) })),
 
-      setTitle: (id, title) =>
-        set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, title } : t)) })),
+      setRemindDaysBefore: (id, days) =>
+        set((s) => ({ tasks: updateTask(s.tasks, id, (t) => ({ ...t, remindDaysBefore: days })) })),
 
-      setNotes: (id, notes) =>
-        set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, notes } : t)) })),
+      setTitle: (id, title) => set((s) => ({ tasks: updateTask(s.tasks, id, (t) => ({ ...t, title })) })),
+
+      setNotes: (id, notes) => set((s) => ({ tasks: updateTask(s.tasks, id, (t) => ({ ...t, notes })) })),
 
       addSubtask: (id, text) =>
-        set((s) => ({
-          tasks: s.tasks.map((t) =>
-            t.id === id ? { ...t, subs: [...t.subs, { text, done: false }] } : t,
-          ),
-        })),
+        set((s) => ({ tasks: updateTask(s.tasks, id, (t) => ({ ...t, subs: [...t.subs, { text, done: false }] })) })),
 
       toggleSubtask: (id, index) =>
         set((s) => ({
-          tasks: s.tasks.map((t) =>
-            t.id === id
-              ? {
-                  ...t,
-                  subs: t.subs.map((sub, i) => (i === index ? { ...sub, done: !sub.done } : sub)),
-                }
-              : t,
-          ),
+          tasks: updateTask(s.tasks, id, (t) => ({
+            ...t,
+            subs: t.subs.map((sub, i) => (i === index ? { ...sub, done: !sub.done } : sub)),
+          })),
         })),
 
       // Like deleteProject, strip the task from other tasks' deps so they aren't blocked on it forever.
@@ -229,6 +227,7 @@ export const useTaskStore = create<TaskStore>()(
             s.tasks.filter((t) => t.id !== id),
             new Set([id]),
           ),
+          deleted: { ...s.deleted, [`task:${s.activeWorkspaceId}:${id}`]: Date.now() },
         })),
 
       addTask: ({ title, project, priority, dueDate }) =>
@@ -246,6 +245,7 @@ export const useTaskStore = create<TaskStore>()(
               deps: [],
               notes: '',
               order: Math.min(0, ...s.tasks.map((t) => t.order)) - 1,
+              updatedAt: Date.now(),
             },
             ...s.tasks,
           ],
@@ -254,32 +254,48 @@ export const useTaskStore = create<TaskStore>()(
       // Refuses dependencies that would close a loop — every task in a loop would stay blocked forever.
       addDependency: (id, dependsOnId) =>
         set((s) => {
-          if (wouldCreateCycle(s.tasks, id, dependsOnId)) return s;
-          return {
-            tasks: s.tasks.map((t) =>
-              t.id === id && !t.deps.includes(dependsOnId) ? { ...t, deps: [...t.deps, dependsOnId] } : t,
-            ),
-          };
+          const task = s.tasks.find((t) => t.id === id);
+          if (!task || task.deps.includes(dependsOnId) || wouldCreateCycle(s.tasks, id, dependsOnId)) return s;
+          return { tasks: updateTask(s.tasks, id, (t) => ({ ...t, deps: [...t.deps, dependsOnId] })) };
         }),
 
       removeDependency: (id, dependsOnId) =>
-        set((s) => ({
-          tasks: s.tasks.map((t) =>
-            t.id === id ? { ...t, deps: t.deps.filter((d) => d !== dependsOnId) } : t,
-          ),
-        })),
+        set((s) => ({ tasks: updateTask(s.tasks, id, (t) => ({ ...t, deps: t.deps.filter((d) => d !== dependsOnId) })) })),
 
       moveTask: (id, destStatus, destColumnOrderedIds) =>
         set((s) => {
+          const now = Date.now();
           const orderById = new Map(destColumnOrderedIds.map((tid, i) => [tid, i]));
           return {
             tasks: s.tasks.map((t) => {
-              if (t.id === id) return { ...t, status: destStatus, order: orderById.get(id) ?? t.order };
-              return orderById.has(t.id) ? { ...t, order: orderById.get(t.id)! } : t;
+              if (t.id === id) return { ...t, status: destStatus, order: orderById.get(id) ?? t.order, updatedAt: now };
+              if (!orderById.has(t.id) || orderById.get(t.id) === t.order) return t;
+              return { ...t, order: orderById.get(t.id)!, updatedAt: now };
             }),
           };
         }),
+
+      updateReminders: (patch) => set((s) => ({ reminders: { ...s.reminders, ...patch, updatedAt: Date.now() } })),
     }),
-    { name: 'ledger-tasks-v2', storage: createCloudStorage() },
+    {
+      name: 'ledger-tasks-v2',
+      version: STATE_VERSION,
+      storage: createCloudStorage(),
+      // Older versions get stamps of 0 (older than any real edit), tombstones and default reminder settings.
+      migrate: (persisted) => normalizeState(persisted) as unknown as TaskStore,
+    },
   ),
 );
+
+// Apply other devices' changes the server merged in after an upload.
+onRemoteState((state) => useTaskStore.setState(state));
+
+// Pull and merge the cloud copy again whenever the app comes back into view or back online, so
+// edits from other devices appear without a reload and any unsynced local edits get uploaded.
+if (CLOUD_ENABLED && typeof window !== 'undefined') {
+  const refresh = () => {
+    if (document.visibilityState === 'visible') void useTaskStore.persist.rehydrate();
+  };
+  window.addEventListener('online', refresh);
+  document.addEventListener('visibilitychange', refresh);
+}

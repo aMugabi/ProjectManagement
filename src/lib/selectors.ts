@@ -1,6 +1,8 @@
 import type { Priority, Project, Status, Task } from '../types';
 import { offsetFromToday } from '../shared/date';
 
+export { stripDeps } from '../shared/state';
+
 export interface FilterState {
   project: string | null;
   priority: Priority | null;
@@ -83,13 +85,6 @@ export function depTitles(tasks: Task[], deps: string[]): string {
   if (!deps.length) return '—';
   const byId = new Map(tasks.map((t) => [t.id, t]));
   return deps.map((id) => byId.get(id)?.title ?? 'a missing task').join(', ');
-}
-
-/** Removes deleted task ids from every remaining task's deps, so nothing stays blocked on a ghost. */
-export function stripDeps(tasks: Task[], deletedIds: Set<string>): Task[] {
-  return tasks.map((t) =>
-    t.deps.some((d) => deletedIds.has(d)) ? { ...t, deps: t.deps.filter((d) => !deletedIds.has(d)) } : t,
-  );
 }
 
 /** True if making `id` depend on `dependsOnId` would close a loop (A → B → … → A), which would block every task in it forever. */

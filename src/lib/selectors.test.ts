@@ -15,6 +15,7 @@ function task(id: string, deps: string[] = [], status: Task['status'] = 'todo'):
     deps,
     notes: '',
     order: 0,
+    updatedAt: 0,
   };
 }
 

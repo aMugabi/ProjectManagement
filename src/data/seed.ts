@@ -36,6 +36,7 @@ export function buildSeedTasks(): Task[] {
       deps,
       notes,
       order: i,
+      updatedAt: 0,
     }),
   );
 }
