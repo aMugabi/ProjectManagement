@@ -1,5 +1,5 @@
 /** Real-date helpers. All task dates are ISO strings ('YYYY-MM-DD'), compared at day granularity. */
-import type { Recurring, Status } from '../types';
+import type { Recurring, Status } from '../types.js';
 
 const DAY = 86400000;
 

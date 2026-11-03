@@ -2,7 +2,7 @@ import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
 import { visibleTasks, withoutDone, sortByDue, projectById, effectiveStatus } from '../lib/selectors';
-import { addDays, dueMeta, offsetFromToday, today } from '../lib/date';
+import { addDays, dueMeta, offsetFromToday, today } from '../shared/date';
 import s from './Timeline.module.css';
 
 const WINDOW_START = -3;

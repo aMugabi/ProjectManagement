@@ -1,5 +1,5 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
@@ -7,6 +7,13 @@ export default defineConfig({
   // GitHub Pages serves this app from a /ProjectManagement/ subpath; Vercel
   // (and any other host serving from the domain root) needs base '/'.
   base: process.env.VERCEL ? '/' : '/ProjectManagement/',
+  // Only Vercel deploys have the /api functions; everywhere else Ledger runs local-only.
+  define: {
+    'import.meta.env.VITE_CLOUD': JSON.stringify(process.env.VERCEL ? 'true' : ''),
+  },
+  test: {
+    include: ['src/**/*.test.ts', 'api/**/*.test.ts'],
+  },
   plugins: [
     react(),
     // Makes Ledger installable and lets it open offline. start_url/scope default to

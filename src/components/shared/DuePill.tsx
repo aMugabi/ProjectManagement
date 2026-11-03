@@ -1,5 +1,5 @@
 import type { Status } from '../../types';
-import { dueMeta } from '../../lib/date';
+import { dueMeta } from '../../shared/date';
 import s from './shared.module.css';
 
 export function DuePill({ dueDate, status }: { dueDate: string; status: Status }) {

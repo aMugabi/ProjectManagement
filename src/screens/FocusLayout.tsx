@@ -4,7 +4,7 @@ import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
 import { visibleTasks, withoutDone, sortByDue, projectById, subtaskProgress, projectStats, depTitles, effectiveStatus } from '../lib/selectors';
-import { offsetFromToday } from '../lib/date';
+import { offsetFromToday } from '../shared/date';
 import { Checkbox } from '../components/shared/Checkbox';
 import { PriorityPill } from '../components/shared/PriorityPill';
 import { DuePill } from '../components/shared/DuePill';

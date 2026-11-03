@@ -3,7 +3,7 @@ import type { Priority, Recurring, Status } from '../types';
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { projectById, depTitles, subtaskProgress, isDepBlocked } from '../lib/selectors';
-import { advanceRecurrence, dueMeta, formatLongDateShortWeekday, isoToDate } from '../lib/date';
+import { advanceRecurrence, dueMeta, formatLongDateShortWeekday, isoToDate } from '../shared/date';
 import { Checkbox } from './shared/Checkbox';
 import s from './Drawer.module.css';
 

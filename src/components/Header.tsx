@@ -4,7 +4,7 @@ import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
 import { visibleTasks, withoutDone } from '../lib/selectors';
-import { offsetFromToday, formatLongDate, today } from '../lib/date';
+import { offsetFromToday, formatLongDate, today } from '../shared/date';
 import s from './Header.module.css';
 
 const PRIORITIES = [

@@ -3,7 +3,7 @@ import type { Priority } from '../types';
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
-import { addDays, dateToIso, today } from '../lib/date';
+import { addDays, dateToIso, today } from '../shared/date';
 import s from './Composer.module.css';
 
 const PRIO_OPTIONS: { value: Priority; label: string }[] = [

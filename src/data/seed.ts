@@ -1,5 +1,5 @@
 import type { Project, Task } from '../types';
-import { addDays, dateToIso, today } from '../lib/date';
+import { addDays, dateToIso, today } from '../shared/date';
 
 // Intentionally empty — projects are added and renamed from the sidebar now (see taskStore.ts).
 export const PROJECTS: Project[] = [];

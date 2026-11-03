@@ -3,7 +3,7 @@ import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
 import { visibleTasks, withoutDone, sortByDue, projectStats, effectiveStatus } from '../lib/selectors';
-import { offsetFromToday } from '../lib/date';
+import { offsetFromToday } from '../shared/date';
 import { Checkbox } from '../components/shared/Checkbox';
 import { DuePill } from '../components/shared/DuePill';
 import { ProgressBar } from '../components/shared/ProgressBar';

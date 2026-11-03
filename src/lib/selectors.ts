@@ -1,5 +1,5 @@
 import type { Priority, Project, Status, Task } from '../types';
-import { offsetFromToday } from './date';
+import { offsetFromToday } from '../shared/date';
 
 export interface FilterState {
   project: string | null;
