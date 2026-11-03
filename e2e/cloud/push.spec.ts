@@ -34,7 +34,7 @@ async function fakePushService(page: Page, permission: 'granted' | 'denied' = 'g
         (localStorage.getItem('__fake_push_sub') ? make() : null) as unknown as PushSubscription;
       PushManager.prototype.subscribe = async (opts?: PushSubscriptionOptionsInit) => {
         if (failWith) throw new DOMException(failWith, 'AbortError');
-        (window as unknown as { __keyLength: number }).__keyLength = (opts?.applicationServerKey as Uint8Array).length;
+        (window as unknown as { __keyLength: number }).__keyLength = (opts!.applicationServerKey as Uint8Array).length;
         localStorage.setItem('__fake_push_sub', '1');
         return make() as unknown as PushSubscription;
       };

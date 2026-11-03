@@ -1,0 +1,35 @@
+name: Send reminders
+
+# Calls Ledger's reminders endpoint every 15 minutes: it pushes due reminders and sends the
+# morning email digest (each at most once). Needs the REMINDERS_SECRET repository secret, set to
+# the same value as REMINDERS_SECRET in the Vercel project. GitHub may start scheduled runs a few
+# minutes late; "Run workflow" on the Actions tab triggers one by hand.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: reminders
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Call /api/reminders
+        env:
+          REMINDERS_SECRET: ${{ secrets.REMINDERS_SECRET }}
+          LEDGER_URL: ${{ vars.LEDGER_URL || 'https://mugabi-ledger.vercel.app' }}
+        run: |
+          if [ -z "$REMINDERS_SECRET" ]; then
+            # Skip quietly (no failure emails every 15 minutes) until the secret is added.
+            echo "::warning::Reminders skipped: add the REMINDERS_SECRET repository secret (same value as in Vercel)."
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error --max-time 60 -X POST \
+            -H "Authorization: Bearer $REMINDERS_SECRET" "$LEDGER_URL/api/reminders"
+          echo

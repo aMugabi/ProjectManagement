@@ -39,6 +39,8 @@ export const REMINDERS_OFF: ReminderSettings = {
   defaultLeadDays: 1,
   includeOverdue: true,
   timezone: 'UTC',
+  emailDigest: false,
+  email: '',
   updatedAt: 1,
 };
 export const REMINDERS_ON: ReminderSettings = { ...REMINDERS_OFF, enabled: true };

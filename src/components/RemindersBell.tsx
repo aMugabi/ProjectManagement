@@ -1,18 +1,11 @@
 import { useState } from 'react';
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
-import { attentionTasks, type TaskRef } from '../shared/reminders';
+import { attentionTasks, dueLabel, type TaskRef } from '../shared/reminders';
 import { dateToIso, today } from '../shared/date';
 import { notificationPermission, requestNotificationPermission } from '../lib/notifications';
 import { openTask } from '../lib/openTask';
 import s from './RemindersBell.module.css';
-
-function dueLabel(days: number): string {
-  if (days < 0) return `${-days}d late`;
-  if (days === 0) return 'today';
-  if (days === 1) return 'tomorrow';
-  return `in ${days}d`;
-}
 
 /** Header bell: everything overdue, due today, or inside its reminder lead time, across all workspaces. */
 export function RemindersBell() {

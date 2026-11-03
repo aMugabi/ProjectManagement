@@ -76,33 +76,40 @@ Ledger warns you about tasks that are overdue, due today or coming up:
 
 - **Daily digest** at a time you choose (Settings → Reminders): what's due today, plus
   anything overdue.
-- **Lead reminders** for each task inside its reminder window: by default 1 day before, or
-  whatever you pick under *Remind me* in the task's details.
-- **Pop-ups** inside the app, with Open task, Snooze 1h and Dismiss, plus a 🔔 in the header
-  listing everything overdue, due today and coming up across all workspaces.
-- **System notifications** while Ledger is open in a background tab, once you allow them
-  (Settings → Notifications, or the bell).
-- **Push notifications** that arrive even when Ledger is closed (Vercel deploy only, after the
-  setup below). On iPhone and iPad, add Ledger to the Home Screen first and open it from there.
-  This needs iOS 16.4 or later.
+- **Lead reminders** for each task inside its reminder window (default: 1 day before; change it
+  per task under *Remind me*).
+- **Pop-ups** inside the app (Open task · Snooze 1h · Dismiss), and a 🔔 in the header listing
+  everything overdue, due today and coming up across all workspaces.
+- **System notifications** while Ledger is open in a background tab, once allowed.
+- **Push notifications** that arrive even when Ledger is closed (Vercel deploy only).
+- **Email digest** — one email each morning at the digest time (Vercel deploy only; Settings →
+  *Email me the daily digest*). Digest only, never one email per task.
 
-### Push setup (Vercel)
+On iPhone/iPad, push needs Ledger added to the Home Screen and opened from there (iOS 16.4+).
+In Brave, turn on *Use Google services for push messaging* (`brave://settings/privacy`).
 
-1. Generate VAPID keys: `npx web-push generate-vapid-keys`. Add the environment variables
-   `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (a `mailto:` address) to the
-   Vercel project.
-2. In the [Upstash console](https://console.upstash.com/qstash), open **QStash** and copy the
-   signing keys into `QSTASH_CURRENT_SIGNING_KEY` and `QSTASH_NEXT_SIGNING_KEY`.
-3. Create a QStash **schedule** that sends a `POST` to `https://<your-app>/api/reminders`
-   with the cron `*/15 * * * *`. Reminders then arrive within 15 minutes of the digest time.
-   That is 96 messages a day, inside QStash's free tier. Vercel's own Hobby cron can only run
-   once a day, which is why it isn't used here.
-4. Redeploy, then go to Settings → Push notifications → **Turn on** on each device, and use
-   **Send test** to check it works.
+### Server setup (Vercel)
 
-Optional: set `REMINDERS_SECRET` to call `/api/reminders` yourself with
-`Authorization: Bearer <secret>`, for example to test it, or from another scheduler.
-Each reminder is pushed at most once.
+Add these environment variables to the Vercel project (Production), then redeploy:
+
+| Variable | What it's for |
+| --- | --- |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Push. Generate the keys with `npx web-push generate-vapid-keys`; the subject is `mailto:` + a contact address. |
+| `REMINDERS_SECRET` | Long random string; lets the timer below call `/api/reminders`. |
+| `RESEND_API_KEY` | Email, via [Resend](https://resend.com). |
+| `EMAIL_FROM` (optional) | Sender, e.g. `Ledger <ledger@yourdomain.org>` once that domain is verified in Resend. Without it, Resend's test sender is used, which only delivers to the Resend account owner's address. |
+
+### The 15-minute timer
+
+`.github/workflows/reminders.yml` calls `/api/reminders` every 15 minutes (free for public
+repositories). Add a repository secret **`REMINDERS_SECRET`** (GitHub → Settings → Secrets and
+variables → Actions) with the same value as in Vercel. To point it at another deploy, set a
+repository variable `LEDGER_URL`. Trigger a run by hand from the Actions tab (*Send reminders →
+Run workflow*). GitHub may start scheduled runs a few minutes late; each reminder and each day's
+email is still sent at most once.
+
+Alternatively, an Upstash QStash schedule can call the same endpoint (it verifies the
+`QSTASH_CURRENT_SIGNING_KEY` / `QSTASH_NEXT_SIGNING_KEY` signature).
 
 ## Stack
 

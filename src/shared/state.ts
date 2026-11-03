@@ -30,6 +30,8 @@ export const DEFAULT_REMINDERS: ReminderSettings = {
   defaultLeadDays: 1,
   includeOverdue: true,
   timezone: 'UTC',
+  emailDigest: false,
+  email: '',
   updatedAt: 0,
 };
 

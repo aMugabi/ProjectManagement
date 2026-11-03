@@ -108,6 +108,7 @@ test.describe('reminders and notifications (local-only build)', () => {
     await expect(dialog).toContainText('Use the cloud version to get push notifications');
     await expect(dialog.getByText('Push notifications', { exact: true })).toHaveCount(0);
     await expect(dialog.getByText('Sign out')).toHaveCount(0);
+    await expect(dialog.getByText('Email me the daily digest')).toHaveCount(0);
   });
 
   test('raises a system notification once while Ledger is in a background tab', async ({ page }) => {

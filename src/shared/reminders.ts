@@ -96,6 +96,14 @@ export function attentionTasks(state: SyncedState, todayIso: string): Attention 
   return result;
 }
 
+/** Short due label: '3d late', 'today', 'tomorrow', 'in 4d'. */
+export function dueLabel(daysLeft: number): string {
+  if (daysLeft < 0) return `${-daysLeft}d late`;
+  if (daysLeft === 0) return 'today';
+  if (daysLeft === 1) return 'tomorrow';
+  return `in ${daysLeft}d`;
+}
+
 export function taskUrl(ref: TaskRef): string {
   return `dashboard?task=${encodeURIComponent(ref.task.id)}&ws=${encodeURIComponent(ref.workspace.id)}`;
 }

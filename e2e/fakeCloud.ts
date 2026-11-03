@@ -31,6 +31,9 @@ export class FakeCloud {
   broken = false;
   /** Simulates the server failing to save a push subscription. */
   failPushSave = false;
+  testEmails: string[] = [];
+  /** When set, /api/email answers 502 with this reason. */
+  emailError: string | null = null;
 
   async install(context: BrowserContext) {
     await context.route('**/api/**', (route) => this.handle(route));
@@ -78,6 +81,12 @@ export class FakeCloud {
         version: STATE_VERSION,
       };
       return this.json(route, 200, this.state);
+    }
+
+    if (url.pathname === '/api/email' && method === 'POST') {
+      if (this.emailError) return this.json(route, 502, { error: this.emailError });
+      this.testEmails.push(body.to);
+      return this.json(route, 200, { ok: true });
     }
 
     if (url.pathname === '/api/push') {

@@ -5,6 +5,9 @@ import { CLOUD_ENABLED } from '../lib/cloud';
 import { signOut } from '../lib/auth';
 import { notificationPermission, requestNotificationPermission, type PermissionState } from '../lib/notifications';
 import { disablePush, enablePush, pushStatus, sendTestPush, type PushStatus } from '../lib/push';
+import { sendTestEmail } from '../lib/email';
+import { isEmail } from '../shared/digestEmail';
+import type { ReminderSettings } from '../types';
 import s from './SettingsDialog.module.css';
 
 const LEAD_OPTIONS = [
@@ -95,6 +98,72 @@ function PushSettings() {
   );
 }
 
+/** Cloud builds only: the server emails the morning digest (one email a day, never one per task). */
+function EmailDigestSettings({
+  reminders,
+  update,
+}: {
+  reminders: ReminderSettings;
+  update: (patch: Partial<ReminderSettings>) => void;
+}) {
+  const [draft, setDraft] = useState(reminders.email);
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const valid = isEmail(draft);
+
+  function save() {
+    const email = draft.trim();
+    if (email !== reminders.email && (valid || !email)) update({ email });
+  }
+
+  async function test() {
+    save();
+    setBusy(true);
+    const error = await sendTestEmail(draft.trim());
+    setMessage(error ? `Couldn't send: ${error}` : `Sent to ${draft.trim()} — check your inbox (and spam)`);
+    setBusy(false);
+  }
+
+  return (
+    <>
+      <label className={s.row}>
+        <span>
+          Email me the daily digest
+          <small>One email at the digest time: due today, overdue and coming up</small>
+        </span>
+        <input
+          type="checkbox"
+          checked={reminders.emailDigest}
+          disabled={!reminders.enabled}
+          onChange={(e) => update({ emailDigest: e.target.checked })}
+        />
+      </label>
+      {reminders.emailDigest && (
+        <div className={s.row}>
+          <span>
+            <input
+              type="email"
+              className={s.input}
+              placeholder="you@example.com"
+              aria-label="Digest email address"
+              value={draft}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                setMessage(null);
+              }}
+              onBlur={save}
+            />
+            <small>{message ?? (draft && !valid ? 'Enter a valid email address' : 'Where the digest is sent')}</small>
+          </span>
+          <button type="button" className={s.buttonSecondary} disabled={busy || !valid} onClick={() => void test()}>
+            Send test email
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function SettingsDialog() {
   const open = useUiStore((st) => st.settingsOpen);
   const close = useUiStore((st) => st.closeSettings);
@@ -175,6 +244,7 @@ function SettingsPanel({ close }: { close: () => void }) {
               onChange={(e) => updateReminders({ includeOverdue: e.target.checked })}
             />
           </label>
+          {CLOUD_ENABLED && <EmailDigestSettings reminders={reminders} update={updateReminders} />}
         </section>
 
         <section className={s.section}>

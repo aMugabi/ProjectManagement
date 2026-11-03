@@ -57,6 +57,9 @@ export interface ReminderSettings {
   includeOverdue: boolean;
   /** IANA time zone the server uses to decide when it's digestTime. */
   timezone: string;
+  /** Also email the daily digest (cloud builds only) to `email`. */
+  emailDigest: boolean;
+  email: string;
   updatedAt: number;
 }
 
