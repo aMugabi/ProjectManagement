@@ -1,0 +1,135 @@
+[
+ {
+  "name": "due dates read as Date objects",
+  "file": "api/_lib/db/rows.ts",
+  "find": "due_date::text due_date,",
+  "replace": "due_date,",
+  "test": "npx vitest run api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "start dates read as Date objects",
+  "file": "api/_lib/db/rows.ts",
+  "find": "start_date::text start_date,",
+  "replace": "start_date,",
+  "test": "npx vitest run api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "owner read of items not filtered by user",
+  "file": "api/_lib/db/rows.ts",
+  "find": "from items where workspace_id in (${MINE})`,",
+  "replace": "from items where $1::uuid is not null`,",
+  "test": "npx vitest run api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "owner read of workspaces not filtered by user",
+  "file": "api/_lib/db/rows.ts",
+  "find": "from workspaces where id in (${MINE})`,",
+  "replace": "from workspaces where $1::uuid is not null`,",
+  "test": "npx vitest run api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "times rounded to seconds",
+  "file": "api/_lib/db/rows.ts",
+  "find": "const ms = (column: string) => `round(extract(epoch from ${column}) * 1000)::float8`;",
+  "replace": "const ms = (column: string) => `round(extract(epoch from ${column})) * 1000::float8`;",
+  "test": "npx vitest run api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "memberships not imported",
+  "file": "api/_lib/db/rows.ts",
+  "find": "    `insert into workspace_members (workspace_id, user_id, role)\n     select r.id, r.owner_id, 'owner' from jsonb_to_recordset($1::jsonb) as r(id uuid, owner_id uuid)`,",
+  "replace": "    `select 1 where $1::jsonb is not null`,",
+  "test": "npx vitest run api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "never-remind not written",
+  "file": "api/_lib/db/rows.ts",
+  "find": "r.recurring, r.remind_days_before, r.remind_off, r.notes,",
+  "replace": "r.recurring, r.remind_days_before, false, r.notes,",
+  "test": "npx vitest run api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "legacy deletions not imported",
+  "file": "api/_lib/db/rows.ts",
+  "find": "    `insert into legacy_deletions (workspace_id, kind, client_id, deleted_at)\n     select r.workspace_id, r.kind, r.client_id, ${time('deleted_ms')}\n       from jsonb_to_recordset($1::jsonb) as r(workspace_id uuid, kind text, client_id text, deleted_ms float8)`,",
+  "replace": "    `select 1 where $1::jsonb is not null`,",
+  "test": "npx vitest run api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "settings not imported",
+  "file": "api/_lib/db/rows.ts",
+  "find": "  if (rows.settings) {\n    await db.query(",
+  "replace": "  if (false) {\n    await db.query(",
+  "test": "npx vitest run api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "list order not kept",
+  "file": "api/_lib/db/rows.ts",
+  "find": "${time('created_ms')}, ${time('edited_ms')}, ${time('deleted_ms')}\n       from jsonb_to_recordset($1::jsonb)\n         as r(id uuid, workspace_id uuid, owner_id uuid, client_id text, type text,",
+  "replace": "now(), ${time('edited_ms')}, ${time('deleted_ms')}\n       from jsonb_to_recordset($1::jsonb)\n         as r(id uuid, workspace_id uuid, owner_id uuid, client_id text, type text,",
+  "test": "npx vitest run api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "items get no baseline",
+  "file": "api/_lib/db/rows.ts",
+  "find": "     select workspace_id, 'items', id::text, 'baseline', to_jsonb(t) from items t where workspace_id = any($1::uuid[])\n     union all\n",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "items logged as inserts during import",
+  "file": "api/_lib/db/rows.ts",
+  "find": "export const LOGGED_TABLES = ['workspaces', 'workspace_members', 'projects', 'items', 'item_links'] as const;",
+  "replace": "export const LOGGED_TABLES = ['workspaces', 'workspace_members', 'projects', 'item_links'] as const;",
+  "test": "npx vitest run api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "log triggers left off after import",
+  "file": "api/_lib/db/import.ts",
+  "find": "    for (const table of LOGGED_TABLES) await owner.query(`alter table ${table} enable trigger log_${table}`);\n",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "mismatch not refused",
+  "file": "api/_lib/db/import.ts",
+  "find": "const sameSummary = (a: Summary, b: Summary) => JSON.stringify(a) === JSON.stringify(b);",
+  "replace": "const sameSummary = (_a: Summary, _b: Summary) => true;",
+  "test": "npx vitest run api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "dry run commits",
+  "file": "api/_lib/db/import.ts",
+  "find": "await owner.query(input.dryRun ? 'rollback' : 'commit');",
+  "replace": "await owner.query('commit');",
+  "test": "npx vitest run api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "second import not refused",
+  "file": "api/_lib/db/import.ts",
+  "find": "    if (existing.rowCount) throw new ImportRefused(",
+  "replace": "    if (false) throw new ImportRefused(",
+  "test": "npx vitest run api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "email not normalised",
+  "file": "api/_lib/db/import.ts",
+  "find": "const email = input.email.trim().toLowerCase();",
+  "replace": "const email = input.email;",
+  "test": "npx vitest run api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "password not carried over",
+  "file": "api/_lib/db/import.ts",
+  "find": "    if (input.passwordHash) {\n      await owner.query(",
+  "replace": "    if (false) {\n      await owner.query(",
+  "test": "npx vitest run api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "app check doesn't set the user",
+  "file": "api/_lib/db/import.ts",
+  "find": "    await app.query(\"select set_config('app.user_id', $1, true)\", [userId]);\n",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/db.test.ts"
+ }
+]

@@ -1,2 +1,4 @@
 # Tests run in CI, not as Vercel functions.
 api/**/*.test.ts
+# Shared test data, not a function.
+api/_lib/db/testing/

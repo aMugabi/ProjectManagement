@@ -19,6 +19,6 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["api", "src/shared", "src/types.ts"],
+  "include": ["api", "src/shared", "src/types.ts", "scripts/**/*.ts"],
   "exclude": ["**/*.test.ts"]
 }

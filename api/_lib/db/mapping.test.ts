@@ -1,65 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { Task } from '../../../src/types';
-import { normalizeState, TOMBSTONE_TTL_MS, type SyncedState } from '../../../src/shared/state';
+import { TOMBSTONE_TTL_MS, type SyncedState } from '../../../src/shared/state';
 import { documentToRows, rowsToDocument, summariseDocument } from './mapping';
-
-const NOW = Date.now();
-const OWNER = '00000000-0000-0000-0000-0000000000aa';
-
-/** Repeatable uuids, so failures are readable. */
-function ids() {
-  let n = 0;
-  return () => `00000000-0000-0000-0000-${String(++n).padStart(12, '0')}`;
-}
-
-function task(id: string, project: string, extra: Partial<Task> = {}): Task {
-  return {
-    id, project, title: `Title ${id}`, status: 'todo', priority: 'med', dueDate: '2026-12-01', subs: [],
-    recurring: null, deps: [], notes: '', order: 0, updatedAt: NOW - 5000, ...extra,
-  };
-}
-
-/** Everything the app stores: three workspaces (one named like an Object built-in), every task field. */
-function document(): SyncedState {
-  return normalizeState(
-    {
-      workspaces: [
-        { id: 'default', name: 'My Workspace', updatedAt: 1 },
-        { id: 'work', name: 'Work', updatedAt: NOW - 9000 },
-        { id: 'constructor', name: 'Odd', updatedAt: 2 },
-      ],
-      activeWorkspaceId: 'default',
-      projects: [
-        { id: 'home', name: 'Home', color: '#b4674a', updatedAt: NOW - 8000 },
-        { id: 'admin', name: 'Admin', color: '#6d7f5b', updatedAt: 0 },
-      ],
-      tasks: [
-        task('t1', 'home', {
-          status: 'doing', priority: 'high', deps: ['t2'], subs: [{ text: 'Call', done: true }, { text: 'Write', done: false }],
-          recurring: 'weekly', remindDaysBefore: 3, startDate: '2026-11-20', notes: 'Notes\nwith a line', order: 2,
-        }),
-        task('t2', 'home', { status: 'done', remindDaysBefore: null, order: -1 }),
-        task('t3', 'admin', { title: 'Plain', updatedAt: 0 }),
-      ],
-      workspaceData: {
-        work: {
-          projects: [{ id: 'client-x', name: 'Client X', color: '#4f7a86', updatedAt: NOW - 7000 }],
-          tasks: [task('w1', 'client-x', { deps: ['w2'], priority: 'low' }), task('w2', 'client-x', { recurring: 'monthly' })],
-        },
-        constructor: { projects: [], tasks: [] },
-      },
-      deleted: {
-        'task:default:gone': NOW - 1000,
-        'project:work:old-project': NOW - 2000,
-      },
-      reminders: {
-        enabled: true, digestTime: '07:30', defaultLeadDays: 2, includeOverdue: false, timezone: 'Africa/Kampala',
-        emailDigest: true, email: 'me@example.org', privateNotifications: false, updatedAt: 123,
-      },
-    },
-    NOW,
-  );
-}
+import { NOW, OWNER, document, ids } from './testing/document';
 
 describe('documentToRows / rowsToDocument', () => {
   it('comes back exactly as it went in', () => {
@@ -86,7 +28,7 @@ describe('documentToRows / rowsToDocument', () => {
     const { rows } = documentToRows(document(), OWNER, ids());
     const onWork = rowsToDocument(rows, 'work', NOW);
     expect(onWork.activeWorkspaceId).toBe('work');
-    expect(onWork.tasks.map((t) => t.id)).toEqual(['w1', 'w2']);
+    expect(onWork.tasks.map((t) => t.id)).toEqual(['w2', 'w1']);
     expect(summariseDocument(onWork)).toEqual(summariseDocument(document()));
     expect(rowsToDocument(rows, 'no-such', NOW).activeWorkspaceId).toBe('default');
   });
@@ -139,6 +81,14 @@ describe('documentToRows / rowsToDocument', () => {
     const { rows } = documentToRows(document(), OWNER, ids());
     rows.legacyDeletions[0].deleted_ms = NOW - TOMBSTONE_TTL_MS - 1;
     expect(Object.keys(rowsToDocument(rows, 'default', NOW).deleted)).toEqual(['project:work:old-project']);
+  });
+
+  it('treats a dependency listed twice as one', () => {
+    const doc = document();
+    doc.tasks[0].deps = ['t2', 't2'];
+    const { rows } = documentToRows(doc, OWNER, ids());
+    expect(rows.links).toHaveLength(2);
+    expect(summariseDocument(rowsToDocument(rows, 'default', NOW))).toEqual(summariseDocument(doc));
   });
 
   it('keeps what it has to change, and says so', () => {

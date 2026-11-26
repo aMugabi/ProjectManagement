@@ -33,6 +33,33 @@ bash ~/.claude/skills/offline-database-tests/scripts/db-test.sh db
 python3 ~/.claude/skills/offline-database-tests/scripts/mutate.py db migrations/0001_foundation.sql db/breaks.json --jobs 4
 ```
 
+The app's own database code (`api/_lib/db/`) has tests that need a running database:
+`api/_lib/db/db.test.ts` is skipped unless `TEST_DB_OWNER_URL` and `TEST_DB_APP_URL` are set. Serve
+the same throwaway database over a socket and run them with no network:
+
+```bash
+SOCK=<scratch folder>/dbsock
+DB_IMAGE=public.ecr.aws/supabase/postgres:17.12.0.002 DB_LOGIN_ROLES=ledger_app \
+  bash ~/.claude/skills/offline-database-tests/scripts/db-serve.sh db "$SOCK" &   # wait for $SOCK/ready
+unshare --user --net --mount --map-current-user --keep-caps bash -c "ip link set lo up; mount --bind '$SOCK' /mnt;
+  TEST_DB_OWNER_URL='postgres://postgres@localhost/postgres?host=/mnt' \
+  TEST_DB_APP_URL='postgres://ledger_app@localhost/postgres?host=/mnt' npx vitest run api/_lib/db/db.test.ts"
+touch "$SOCK/stop"
+```
+Each run uses its own users, so runs can share one served database. `db/code-breaks.json` (the
+converter) and `db/code-breaks-db.json` (reading, writing, the import) break the code on purpose;
+run them with the skill's `break-code.py` (the second inside the namespace above).
+
+## Moving the data (Step 1a)
+1. `npm run backup`, then `npm run backup -- --verify FILE`.
+2. `DATABASE_OWNER_URL=<owner> npm run db:migrate` (applies each migration once; records them in
+   `migrations.applied`, which the app role can't see).
+3. `DATABASE_OWNER_URL=<owner> npm run db:import -- --email you@example.org --from FILE --dry-run`:
+   does everything, prints counts per workspace and the before/after checksums, rolls back.
+4. The same without `--dry-run`, with `DATABASE_URL=<app role>` (checks it again through the app's
+   policies) and `AUTH_PASSWORD_HASH` (carries the password over). One "baseline" change-log entry
+   per row marks where history starts. A second import for the same email is refused.
+
 ## Setting up a real database (when the host is chosen)
 1. Create the database; run the migrations as its owner.
 2. Create the app's login role, a member of `ledger_app` and nothing else:

@@ -30,8 +30,8 @@
  {
   "name": "subtasks lost",
   "file": "api/_lib/db/mapping.ts",
-  "find": "            subs: i.subtasks,",
-  "replace": "            subs: [],",
+  "find": "subs: i.subtasks.map((sub) => ({ text: sub.text, done: sub.done })),",
+  "replace": "subs: [],",
   "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
  },
  {
@@ -144,6 +144,20 @@
   "file": "api/_lib/db/mapping.ts",
   "find": "  lines.sort();\n  return { workspaces, checksum",
   "replace": "  return { workspaces, checksum",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "subtask fields swapped",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "subs: i.subtasks.map((sub) => ({ text: sub.text, done: sub.done })),",
+  "replace": "subs: i.subtasks.map((sub) => ({ text: sub.text, done: !sub.done })),",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "duplicate dependency counted twice",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "t.order, t.updatedAt, [...new Set(t.deps)].sort().join(','),",
+  "replace": "t.order, t.updatedAt, [...t.deps].sort().join(','),",
   "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
  }
 ]

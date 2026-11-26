@@ -12,6 +12,8 @@
     "hash-password": "node scripts/hash-password.mjs",
     "setup-mfa": "node scripts/setup-mfa.mjs",
     "backup": "node scripts/backup.mjs",
+    "db:migrate": "node --import ./scripts/ts-register.mjs scripts/db-migrate.ts",
+    "db:import": "node --import ./scripts/ts-register.mjs scripts/db-import.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {
@@ -21,6 +23,7 @@
     "@upstash/qstash": "^2.12.1",
     "@upstash/ratelimit": "^2.2.0",
     "@upstash/redis": "^1.39.0",
+    "pg": "^8.23.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.2",
@@ -30,6 +33,7 @@
   "devDependencies": {
     "@playwright/test": "^1.64.1",
     "@types/node": "^24.13.3",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@types/web-push": "^3.6.4",

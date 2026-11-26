@@ -273,7 +273,8 @@ export function rowsToDocument(rows: Rows, activeWorkspaceId?: string, now = Dat
             status: i.status,
             priority: i.priority,
             dueDate: i.due_date ?? String(i.details.legacy_due_date ?? ''),
-            subs: i.subtasks,
+            // jsonb keeps object keys in its own order; rebuild each subtask in the app's shape.
+            subs: i.subtasks.map((sub) => ({ text: sub.text, done: sub.done })),
             recurring: i.recurring,
             deps: deps.get(i.id) ?? [],
             notes: i.notes,
@@ -325,8 +326,8 @@ export interface WorkspaceSummary {
  * first, so a deletion that a later edit has overridden doesn't count. Equal summaries mean
  * nothing was lost or changed. (Task order within the list isn't compared: the views sort it.)
  */
-export function summariseDocument(raw: unknown): { workspaces: WorkspaceSummary[]; checksum: string } {
-  const normal = normalizeState(raw);
+export function summariseDocument(raw: unknown, now = Date.now()): { workspaces: WorkspaceSummary[]; checksum: string } {
+  const normal = normalizeState(raw, now);
   const state = mergeStates(normal, normal, normal.activeWorkspaceId);
   const data = allWorkspaceData(state);
   const live = new Set<string>();
@@ -346,7 +347,7 @@ export function summariseDocument(raw: unknown): { workspaces: WorkspaceSummary[
     for (const t of tasks) {
       const remind = t.remindDaysBefore === undefined ? 'default' : String(t.remindDaysBefore);
       lines.push(['t', w.id, t.id, t.project, t.title, t.status, t.priority, t.dueDate, t.startDate ?? '', t.recurring ?? '', remind,
-        t.order, t.updatedAt, [...t.deps].sort().join(','), JSON.stringify(t.subs), t.notes].join('|'));
+        t.order, t.updatedAt, [...new Set(t.deps)].sort().join(','), JSON.stringify(t.subs.map((sub) => [sub.text, sub.done])), t.notes].join('|'));
     }
     const prefixes = [`task:${w.id}:`, `project:${w.id}:`];
     return {
@@ -354,7 +355,7 @@ export function summariseDocument(raw: unknown): { workspaces: WorkspaceSummary[
       projects: projects.length,
       tasks: tasks.length,
       done: tasks.filter((t) => t.status === 'done').length,
-      dependencies: tasks.reduce((n, t) => n + t.deps.length, 0),
+      dependencies: tasks.reduce((n, t) => n + new Set(t.deps).size, 0),
       deletions: deletions.filter(([key]) => prefixes.some((p) => key.startsWith(p))).length,
     };
   });
