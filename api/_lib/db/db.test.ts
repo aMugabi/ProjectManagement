@@ -10,7 +10,8 @@ import { withUser } from './client';
 import { ImportRefused, importDocument, verifyAsApp } from './import';
 import { rowsToDocument, summariseDocument } from './mapping';
 import { readRows } from './rows';
-import { NOW, document } from './testing/document';
+import { syncDocument } from './sync';
+import { NOW, document, task } from './testing/document';
 
 const OWNER_URL = process.env.TEST_DB_OWNER_URL;
 /** Each run uses its own users, so runs can share one database. */
@@ -106,6 +107,127 @@ describe.skipIf(!OWNER_URL || !APP_URL)('the database (TEST_DB_OWNER_URL, TEST_D
     const email = `odd-${RUN}@example.org`;
     await expect(importDocument(owner, { email, document: doc, dryRun: false, now: NOW })).rejects.toThrow(/differs from the document; nothing was saved|differs/);
     expect((await owner.query('select count(*)::int n from users where email = $1', [email])).rows[0].n).toBe(0);
+  });
+
+  /** This user's change-log entries by the user themself, as 'table action' → count. */
+  async function logCounts(): Promise<Record<string, number>> {
+    const r = await owner.query<{ k: string; n: number }>(
+      `select table_name || ' ' || action k, count(*)::int n from change_log where actor_id = $1 group by 1 order by 1`,
+      [userId],
+    );
+    return Object.fromEntries(r.rows.map((x) => [x.k, x.n]));
+  }
+  const sync = (upload: unknown, now: number) => withUser(app, userId, (c) => syncDocument(c, userId, upload, now));
+
+  it('syncs edits, new tasks, deletions and a new workspace through the app role, logging each as the user', async () => {
+    const before = await logCounts();
+    const upload = document();
+    upload.tasks[0] = { ...upload.tasks[0], title: 'From a device', updatedAt: NOW + 1000 };
+    upload.tasks = [task('n1', 'home', { deps: ['t2'], updatedAt: NOW + 1000 }), ...upload.tasks.filter((t) => t.id !== 't3')];
+    upload.deleted['task:default:t3'] = NOW + 2000;
+    upload.workspaces.push({ id: 'ws-new', name: 'New', updatedAt: NOW + 1000 });
+    upload.workspaceData['ws-new'] = { projects: [{ id: 'np', name: 'NP', color: '#123456', updatedAt: NOW + 1000 }], tasks: [task('x1', 'np', { updatedAt: NOW + 1000 })] };
+    upload.reminders = { ...upload.reminders, digestTime: '06:15', updatedAt: NOW + 1000 };
+
+    const reply = await sync(upload, NOW + 5000);
+    expect(reply.tasks.map((t) => t.id).sort()).toEqual(['n1', 't1', 't2']);
+    expect(reply.tasks.find((t) => t.id === 't1')!.title).toBe('From a device');
+    expect(reply.tasks.find((t) => t.id === 'n1')!.deps).toEqual(['t2']);
+    expect(reply.deleted['task:default:t3']).toBe(NOW + 2000);
+    expect(reply.workspaceData['ws-new'].tasks.map((t) => [t.id, t.project])).toEqual([['x1', 'np']]);
+    const filed = await owner.query(
+      `select p.client_id from items i join projects p on p.id = i.project_id where i.owner_id = $1 and i.client_id = 'x1'`,
+      [userId],
+    );
+    expect(filed.rows).toEqual([{ client_id: 'np' }]); // linked to the project row, not just named
+    expect(reply.reminders.digestTime).toBe('06:15');
+
+    const after = await logCounts();
+    const added = Object.fromEntries(Object.entries(after).map(([k, n]) => [k, n - (before[k] ?? 0)]).filter(([, n]) => n));
+    expect(added).toEqual({
+      'items insert': 2, // n1, x1
+      'items update': 2, // t1 edited, t3 deleted
+      'item_links insert': 1, // n1 waits for t2
+      'workspaces insert': 1,
+      'workspaces update': 1, // its place in the list
+      'workspace_members insert': 1,
+      'projects insert': 1,
+    });
+  });
+
+  it('writes nothing when the same upload comes again', async () => {
+    const before = await logCounts();
+    const upload = rowsToDocument(await readRows(owner, userId), 'default', NOW + 6000);
+    await sync(upload, NOW + 6000);
+    expect(await logCounts()).toEqual(before);
+  });
+
+  it("a stale device can't bring a deleted task back, and is told to drop it", async () => {
+    const reply = await sync(document(), NOW + 7000); // the original copy: old t1, and t3 still there
+    expect(reply.tasks.map((t) => t.id).sort()).toEqual(['n1', 't1', 't2']);
+    expect(reply.tasks.find((t) => t.id === 't1')!.title).toBe('From a device');
+    expect(reply.deleted['task:default:t3']).toBe(NOW + 2000);
+    const t3 = await owner.query("select deleted_at is not null deleted from items where owner_id = $1 and client_id = 't3'", [userId]);
+    expect(t3.rows).toEqual([{ deleted: true }]);
+  });
+
+  it('two devices syncing at once: the second waits for the first, and both are kept', async () => {
+    const base = rowsToDocument(await readRows(owner, userId), 'default', NOW + 8000);
+    const withRace = (extra: (d: typeof base) => void) => {
+      const d = structuredClone(base);
+      d.workspaces.push({ id: 'race', name: 'Race', updatedAt: NOW + 8000 });
+      d.workspaceData.race = { projects: [], tasks: [] };
+      extra(d);
+      return d;
+    };
+    const first = withRace((d) => (d.tasks.find((t) => t.id === 't1')!.notes = 'first device', d.tasks.find((t) => t.id === 't1')!.updatedAt = NOW + 8001));
+    const second = withRace((d) => (d.tasks.find((t) => t.id === 't2')!.notes = 'second device', d.tasks.find((t) => t.id === 't2')!.updatedAt = NOW + 8002));
+
+    const a = await app.connect();
+    try {
+      await a.query('begin');
+      await a.query("select set_config('app.user_id', $1, true)", [userId]);
+      await syncDocument(a, userId, first, NOW + 9000); // holds the lock until it commits
+      let settled = false;
+      const b = sync(second, NOW + 9000).finally(() => (settled = true));
+      await new Promise((r) => setTimeout(r, 400));
+      expect(settled).toBe(false); // waiting for the first device
+      await a.query('commit');
+      const reply = await b;
+      expect(reply.workspaces.filter((w) => w.id === 'race')).toHaveLength(1);
+      expect(reply.tasks.find((t) => t.id === 't1')!.notes).toBe('first device');
+      expect(reply.tasks.find((t) => t.id === 't2')!.notes).toBe('second device');
+    } finally {
+      await a.query('rollback').catch(() => undefined);
+      a.release();
+    }
+  });
+
+  it('a newer edit brings a deleted task back, and an emptied dependency list removes the link', async () => {
+    const upload = rowsToDocument(await readRows(owner, userId), 'default', NOW + 10000);
+    upload.tasks.push(task('t3', 'admin', { title: 'Back', updatedAt: NOW + 10000 }));
+    upload.tasks = upload.tasks.map((t) => (t.id === 'n1' ? { ...t, deps: [], updatedAt: NOW + 10000 } : t));
+    const before = await logCounts();
+    const reply = await sync(upload, NOW + 10000);
+    expect(reply.tasks.find((t) => t.id === 't3')!.title).toBe('Back');
+    expect(reply.tasks.find((t) => t.id === 'n1')!.deps).toEqual([]);
+    const t3 = await owner.query("select deleted_at is null live from items where owner_id = $1 and client_id = 't3'", [userId]);
+    expect(t3.rows).toEqual([{ live: true }]);
+    expect((await logCounts())['item_links delete'] ?? 0).toBe((before['item_links delete'] ?? 0) + 1);
+  });
+
+  it('once devices have forgotten a deletion, a stale copy is refused and the reply marks it deleted now', async () => {
+    await owner.query(
+      "update items set edited_at = '2019-01-01', deleted_at = '2020-01-01' where owner_id = $1 and client_id = 't3'",
+      [userId],
+    );
+    const upload = rowsToDocument(await readRows(owner, userId), 'default', NOW + 11000);
+    upload.tasks.push(task('t3', 'admin', { title: 'Stale', updatedAt: Date.parse('2019-06-01') }));
+    const reply = await sync(upload, NOW + 11000);
+    expect(reply.tasks.map((t) => t.id)).not.toContain('t3');
+    expect(reply.deleted['task:default:t3']).toBe(NOW + 11000);
+    const t3 = await owner.query("select title, deleted_at is not null deleted from items where owner_id = $1 and client_id = 't3'", [userId]);
+    expect(t3.rows).toEqual([{ title: 'Back', deleted: true }]);
   });
 
   it('migrates a new database once, and then does nothing', async () => {

@@ -131,5 +131,110 @@
   "find": "    await app.query(\"select set_config('app.user_id', $1, true)\", [userId]);\n",
   "replace": "",
   "test": "npx vitest run api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "sync: no per-user lock",
+  "file": "api/_lib/db/sync.ts",
+  "find": "  await db.query('select pg_advisory_xact_lock(hashtextextended($1, 0))', [`ledger-sync:${userId}`]);\n",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "sync: stale task copies accepted",
+  "file": "api/_lib/db/sync.ts",
+  "find": "      if (deletedAt !== null && t.updatedAt <= deletedAt) {",
+  "replace": "      if (false) {",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "sync: stale project copies accepted",
+  "file": "api/_lib/db/sync.ts",
+  "find": "      if (deletedAt !== null && p.updatedAt <= deletedAt) plan.refused.push(",
+  "replace": "      if (false) plan.refused.push(",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "sync: new tasks all made at once",
+  "file": "api/_lib/db/sync.ts",
+  "find": "created_ms: now - plan.newItems.length,",
+  "replace": "created_ms: now,",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "sync: ties left as stored",
+  "file": "api/_lib/db/sync.ts",
+  "find": "} else if (row.deleted_ms !== null || taskKey(w.id, t) !== taskKey(w.id, currentTasks.get(t.id)!)) {",
+  "replace": "} else if (row.deleted_ms !== null || t.updatedAt > currentTasks.get(t.id)!.updatedAt) {",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "sync: deletions not written",
+  "file": "api/_lib/db/sync.ts",
+  "find": "      if (row.deleted_ms === null && !liveTasks.has(row.client_id) && at !== undefined) plan.deletions.push({ table: 'items', id: row.id, deleted_ms: at });",
+  "replace": "      void at;",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "sync: edits don't undelete",
+  "file": "api/_lib/db/sync.ts",
+  "find": "              edited_at = ${time('$14')}, deleted_at = null\n        where id = $15`,",
+  "replace": "              edited_at = ${time('$14')}\n        where id = $15`,",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "sync: removed dependencies kept",
+  "file": "api/_lib/db/sync.ts",
+  "find": "    for (const to of have) if (!wanted.has(to)) await db.query(",
+  "replace": "    for (const to of have) if (false && !wanted.has(to)) await db.query(",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "sync: new dependencies not written",
+  "file": "api/_lib/db/sync.ts",
+  "find": "      if (!have.has(to)) await db.query('insert into item_links",
+  "replace": "      if (false) await db.query('insert into item_links",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "sync: settings not written",
+  "file": "api/_lib/db/sync.ts",
+  "find": "  if (plan.settings) {\n    await db.query(\n      `insert into user_settings",
+  "replace": "  if (false) {\n    await db.query(\n      `insert into user_settings",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "sync: settings changes not planned",
+  "file": "api/_lib/db/sync.ts",
+  "find": "  if (remindersKey(merged.reminders) !== remindersKey(current.reminders)) {",
+  "replace": "  if (false) {",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "sync: refused copies not marked for the device",
+  "file": "api/_lib/db/sync.ts",
+  "find": "  for (const key of plan.refused) reply.deleted[key] = now;\n",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "sync: new workspaces not created",
+  "file": "api/_lib/db/sync.ts",
+  "find": "  for (const w of plan.newWorkspaces) {\n    const made",
+  "replace": "  for (const w of plan.newWorkspaces.slice(0, 0)) {\n    const made",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "sync: edits not detected",
+  "file": "api/_lib/db/sync.ts",
+  "find": "    } else if (workspaceKey(w) !== workspaceKey(currentWorkspaces.get(w.id)!)) {",
+  "replace": "    } else if (false) {",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "sync: task project not resolved",
+  "file": "api/_lib/db/sync.ts",
+  "find": "    const id = projectIds.get(`${workspace}:${project}`) ?? null;",
+  "replace": "    const id = null;",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
  }
 ]

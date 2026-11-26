@@ -6,7 +6,7 @@
  * Times are milliseconds here (the document's updatedAt and tombstone stamps) and timestamptz in
  * the database; the SQL layer converts at the boundary, exactly to the millisecond.
  */
-import type { Project, Recurring, ReminderSettings, Status, Task, Priority } from '../../../src/types.js';
+import type { Project, Recurring, ReminderSettings, Status, Task, Priority, Workspace } from '../../../src/types.js';
 import { createHash } from 'node:crypto';
 import { mergeStates } from '../../../src/shared/merge.js';
 import { DEFAULT_REMINDERS, allWorkspaceData, normalizeState, ownEntry, type SyncedState } from '../../../src/shared/state.js';
@@ -310,6 +310,19 @@ export function rowsToDocument(rows: Rows, activeWorkspaceId?: string, now = Dat
   );
 }
 
+/**
+ * One line per thing, holding every field the app shows or syncs: equal lines mean equal data.
+ * Used by the before/after checksum and by sync to decide what changed.
+ */
+export const workspaceKey = (w: Workspace) => ['w', w.id, w.name, w.updatedAt].join('|');
+export const projectKey = (workspace: string, p: Project) => ['p', workspace, p.id, p.name, p.color, p.updatedAt].join('|');
+export function taskKey(workspace: string, t: Task): string {
+  const remind = t.remindDaysBefore === undefined ? 'default' : String(t.remindDaysBefore);
+  return ['t', workspace, t.id, t.project, t.title, t.status, t.priority, t.dueDate, t.startDate ?? '', t.recurring ?? '', remind,
+    t.order, t.updatedAt, [...new Set(t.deps)].sort().join(','), JSON.stringify(t.subs.map((sub) => [sub.text, sub.done])), t.notes].join('|');
+}
+export const remindersKey = (r: ReminderSettings) => `r|${JSON.stringify(Object.entries(r).sort())}`;
+
 export interface WorkspaceSummary {
   workspace: string;
   projects: number;
@@ -342,13 +355,9 @@ export function summariseDocument(raw: unknown, now = Date.now()): { workspaces:
   const lines: string[] = [];
   const workspaces = state.workspaces.map((w) => {
     const { projects = [], tasks = [] } = ownEntry(data, w.id) ?? {};
-    lines.push(`w|${w.id}|${w.name}|${w.updatedAt}`);
-    for (const p of projects) lines.push(`p|${w.id}|${p.id}|${p.name}|${p.color}|${p.updatedAt}`);
-    for (const t of tasks) {
-      const remind = t.remindDaysBefore === undefined ? 'default' : String(t.remindDaysBefore);
-      lines.push(['t', w.id, t.id, t.project, t.title, t.status, t.priority, t.dueDate, t.startDate ?? '', t.recurring ?? '', remind,
-        t.order, t.updatedAt, [...new Set(t.deps)].sort().join(','), JSON.stringify(t.subs.map((sub) => [sub.text, sub.done])), t.notes].join('|'));
-    }
+    lines.push(workspaceKey(w));
+    for (const p of projects) lines.push(projectKey(w.id, p));
+    for (const t of tasks) lines.push(taskKey(w.id, t));
     const prefixes = [`task:${w.id}:`, `project:${w.id}:`];
     return {
       workspace: w.id,
@@ -360,7 +369,7 @@ export function summariseDocument(raw: unknown, now = Date.now()): { workspaces:
     };
   });
   for (const [key, at] of deletions) lines.push(`d|${key}|${at}`);
-  lines.push(`r|${JSON.stringify(Object.entries(state.reminders).sort())}`);
+  lines.push(remindersKey(state.reminders));
   lines.sort();
   return { workspaces, checksum: createHash('sha256').update(lines.join('\n')).digest('hex') };
 }
