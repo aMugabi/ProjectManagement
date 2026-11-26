@@ -7,6 +7,8 @@ export const PASSWORD = 'correct horse';
 export const SESSION = 'session-token-1';
 /** With `mfa` on, the authenticator code the fake accepts (reusable here; the real check is unit-tested). */
 export const MFA_CODE = '123456';
+/** With `emailLogin` on, the email the fake accepts. */
+export const EMAIL = 'me@example.org';
 
 interface PushSub {
   endpoint: string;
@@ -38,7 +40,9 @@ export class FakeCloud {
   emailError: string | null = null;
   /** Sign-in needs MFA_CODE as well as the password. */
   mfa = false;
-  loginBodies: { password?: string; code?: string }[] = [];
+  /** Sign-in by email (Postgres mode): needs EMAIL too, and always a code. */
+  emailLogin = false;
+  loginBodies: { email?: string; password?: string; code?: string }[] = [];
 
   async install(context: BrowserContext) {
     await context.route('**/api/**', (route) => this.handle(route));
@@ -59,12 +63,13 @@ export class FakeCloud {
     const token = (req.headers()['authorization'] ?? '').replace(/^Bearer /, '');
     const authed = this.sessions.has(token);
 
-    if (url.pathname === '/api/login' && method === 'GET') return this.json(route, 200, { mfa: this.mfa });
+    if (url.pathname === '/api/login' && method === 'GET') return this.json(route, 200, { mfa: this.mfa || this.emailLogin, email: this.emailLogin });
     if (url.pathname === '/api/login' && method === 'POST') {
       this.loginBodies.push(body);
       if (++this.loginAttempts > 5) return this.json(route, 429, { error: 'too many attempts' });
-      if (body?.password !== PASSWORD || (this.mfa && body?.code !== MFA_CODE)) {
-        return this.json(route, 401, { error: this.mfa ? 'incorrect password or code' : 'incorrect password' });
+      const needsCode = this.mfa || this.emailLogin;
+      if (body?.password !== PASSWORD || (needsCode && body?.code !== MFA_CODE) || (this.emailLogin && body?.email !== EMAIL)) {
+        return this.json(route, 401, { error: this.emailLogin ? 'incorrect email, password or code' : this.mfa ? 'incorrect password or code' : 'incorrect password' });
       }
       const fresh = `session-${this.sessions.size + 1}`;
       this.sessions.add(fresh);

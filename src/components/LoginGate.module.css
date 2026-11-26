@@ -52,6 +52,10 @@
   border-color: var(--accent);
 }
 
+.email {
+  margin-bottom: 10px;
+}
+
 .code {
   margin-top: 10px;
   letter-spacing: 0.08em;

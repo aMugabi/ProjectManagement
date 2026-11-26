@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
-import { isUnlocked, login, mfaRequired, subscribeAuth, type LoginResult } from '../lib/auth';
+import { isUnlocked, login, loginOptions, subscribeAuth, type LoginOptions, type LoginResult } from '../lib/auth';
 import { useTaskStore } from '../store/taskStore';
 import s from './LoginGate.module.css';
 
@@ -13,17 +13,18 @@ const ERRORS: Record<Exclude<LoginResult, 'ok'>, string> = {
 export function LoginGate({ children }: { children: ReactNode }) {
   // Locks again whenever the session goes away (expired, or signed out on another device).
   const unlocked = useSyncExternalStore(subscribeAuth, isUnlocked);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
-  // Whether the server asks for an authenticator code too; null = not known (offline): offer it anyway.
-  const [mfa, setMfa] = useState<boolean | null>(null);
+  // What the server asks for; null = not known (offline): offer the code field anyway.
+  const [options, setOptions] = useState<LoginOptions | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     if (unlocked) return;
     let live = true;
-    void mfaRequired().then((required) => live && setMfa(required));
+    void loginOptions().then((o) => live && setOptions(o));
     return () => {
       live = false;
     };
@@ -31,12 +32,14 @@ export function LoginGate({ children }: { children: ReactNode }) {
 
   if (unlocked) return <>{children}</>;
 
+  const mfa = options?.mfa ?? null;
   const askCode = mfa !== false;
+  const askEmail = options?.email === true;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setChecking(true);
-    const result = await login(password, askCode ? code.trim() : undefined);
+    const result = await login(password, askCode ? code.trim() : undefined, askEmail ? email.trim() : undefined);
     setChecking(false);
     if (result === 'ok') {
       setPassword('');
@@ -45,7 +48,8 @@ export function LoginGate({ children }: { children: ReactNode }) {
       // now that we have one, pull and merge the latest cloud copy.
       void useTaskStore.persist.rehydrate();
     } else {
-      setError(result === 'incorrect' && askCode ? 'Incorrect password or code' : ERRORS[result]);
+      const incorrect = askEmail ? 'Incorrect email, password or code' : askCode ? 'Incorrect password or code' : ERRORS.incorrect;
+      setError(result === 'incorrect' ? incorrect : ERRORS[result]);
       if (result === 'incorrect') {
         setPassword('');
         setCode('');
@@ -58,10 +62,25 @@ export function LoginGate({ children }: { children: ReactNode }) {
       <form className={s.dialog} onSubmit={handleSubmit}>
         <div className={s.mark} />
         <div className={s.title}>Ledger</div>
+        {askEmail && (
+          <input
+            className={`${s.input} ${s.email}`}
+            type="email"
+            autoFocus
+            autoComplete="username"
+            placeholder="Email"
+            aria-label="Email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setError(null);
+            }}
+          />
+        )}
         <input
           className={s.input}
           type="password"
-          autoFocus
+          autoFocus={!askEmail}
           autoComplete="current-password"
           placeholder="Password"
           value={password}
@@ -91,7 +110,11 @@ export function LoginGate({ children }: { children: ReactNode }) {
           </>
         )}
         {error && <div className={s.error}>{error}</div>}
-        <button type="submit" className={s.button} disabled={checking || !password || (mfa === true && !code.trim())}>
+        <button
+          type="submit"
+          className={s.button}
+          disabled={checking || !password || (mfa === true && !code.trim()) || (askEmail && !email.trim())}
+        >
           {checking ? 'Checking…' : 'Unlock'}
         </button>
       </form>

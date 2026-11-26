@@ -49,26 +49,30 @@ function setToken(token: string | null) {
 
 export type LoginResult = 'ok' | 'incorrect' | 'rate-limited' | 'unavailable';
 
-/**
- * Whether sign-in needs an authenticator or recovery code as well as the password.
- * null when the server can't be reached (the form then offers the code field anyway).
- */
-export async function mfaRequired(): Promise<boolean | null> {
+/** What the sign-in form must ask for: a code (authenticator or recovery), and an email address. */
+export interface LoginOptions {
+  mfa: boolean;
+  email: boolean;
+}
+
+/** The server's sign-in options; null when it can't be reached (the form then offers the code field anyway). */
+export async function loginOptions(): Promise<LoginOptions | null> {
   try {
     const res = await fetch('/api/login');
     if (!res.ok) return null;
-    return ((await res.json()) as { mfa?: boolean }).mfa === true;
+    const body = (await res.json()) as Partial<LoginOptions>;
+    return { mfa: body.mfa === true, email: body.email === true };
   } catch {
     return null;
   }
 }
 
-export async function login(password: string, code?: string): Promise<LoginResult> {
+export async function login(password: string, code?: string, email?: string): Promise<LoginResult> {
   try {
     const res = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(code ? { password, code } : { password }),
+      body: JSON.stringify({ ...(email ? { email } : {}), password, ...(code ? { code } : {}) }),
     });
     if (res.status === 429) return 'rate-limited';
     if (res.status === 401) return 'incorrect';

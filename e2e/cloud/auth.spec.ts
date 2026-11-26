@@ -1,5 +1,5 @@
 import { expect, openSettings, savedState, seed, stored, task, test } from '../fixtures';
-import { FakeCloud, MFA_CODE, PASSWORD, SESSION } from '../fakeCloud';
+import { EMAIL, FakeCloud, MFA_CODE, PASSWORD, SESSION } from '../fakeCloud';
 
 let cloud: FakeCloud;
 test.beforeEach(async ({ context }) => {
@@ -55,6 +55,29 @@ test.describe('cloud build: sign-in and sessions', () => {
     await unlock(page).click();
     await expect(page.getByText('From the cloud')).toBeVisible();
     expect(cloud.loginBodies.at(-1)).toEqual({ password: PASSWORD, code: MFA_CODE });
+  });
+
+  test('signing in by email (the Postgres store) asks for email, password and code', async ({ page }) => {
+    cloud.emailLogin = true;
+    cloud.state = stored({ tasks: [task('c', 'From the cloud', 1)] });
+    await seed(page, null);
+    await page.goto('tasks');
+    const email = page.getByLabel('Email');
+    await expect(email).toBeVisible();
+    await expect(email).toBeFocused();
+    await page.getByPlaceholder('Password').fill(PASSWORD);
+    await page.getByLabel('Authenticator code').fill(MFA_CODE);
+    await expect(unlock(page)).toBeDisabled(); // the email is required
+    await email.fill('someone@else.org');
+    await unlock(page).click();
+    await expect(page.getByText('Incorrect email, password or code')).toBeVisible();
+
+    await email.fill(` ${EMAIL} `);
+    await page.getByPlaceholder('Password').fill(PASSWORD);
+    await page.getByLabel('Authenticator code').fill(MFA_CODE);
+    await unlock(page).click();
+    await expect(page.getByText('From the cloud')).toBeVisible();
+    expect(cloud.loginBodies.at(-1)).toEqual({ email: EMAIL, password: PASSWORD, code: MFA_CODE });
   });
 
   test('explains when there have been too many attempts', async ({ page }) => {
