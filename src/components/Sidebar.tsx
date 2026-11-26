@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { screen: 'timeline', glyph: '⋯', label: 'Timeline', showCount: false },
   { screen: 'waiting', glyph: '⧖', label: 'Waiting on', showCount: true },
   { screen: 'releases', glyph: '⇥', label: 'Releases', showCount: false },
+  { screen: 'report', glyph: '▤', label: 'Weekly report', showCount: false },
 ] as const;
 
 export function Sidebar() {

@@ -66,12 +66,15 @@ export function Header() {
   } else if (screen === 'releases') {
     kicker = 'Delivery';
     title = 'Releases';
+  } else if (screen === 'report') {
+    kicker = 'Reporting';
+    title = 'Weekly report';
   } else if (screen === 'sort') {
     kicker = 'Products and partners';
     title = 'Sort projects';
   }
-  // The sorting tool and the releases work on whole projects and releases: no item filters or search.
-  const tool = screen === 'sort' || screen === 'releases';
+  // The sorting tool, releases and the report have their own controls: no item filters or search.
+  const tool = screen === 'sort' || screen === 'releases' || screen === 'report';
 
   const filtered = visibleTasks(tasks, store, f);
   const open = withoutDone(filtered);
