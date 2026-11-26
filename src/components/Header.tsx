@@ -63,12 +63,15 @@ export function Header() {
   } else if (screen === 'waiting') {
     kicker = 'Follow-ups';
     title = 'Waiting on';
+  } else if (screen === 'releases') {
+    kicker = 'Delivery';
+    title = 'Releases';
   } else if (screen === 'sort') {
     kicker = 'Products and partners';
     title = 'Sort projects';
   }
-  // The sorting tool works on whole projects, so the item filters and search don't apply there.
-  const tool = screen === 'sort';
+  // The sorting tool and the releases work on whole projects and releases: no item filters or search.
+  const tool = screen === 'sort' || screen === 'releases';
 
   const filtered = visibleTasks(tasks, store, f);
   const open = withoutDone(filtered);

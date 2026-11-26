@@ -11,6 +11,7 @@ import { Tasks } from './screens/Tasks';
 import { Timeline } from './screens/Timeline';
 import { SortProjects } from './screens/SortProjects';
 import { WaitingOn } from './screens/WaitingOn';
+import { Releases } from './screens/Releases';
 import { useUiStore } from './store/uiStore';
 import { useTaskStore } from './store/taskStore';
 import { useReminders } from './lib/useReminders';
@@ -90,6 +91,7 @@ export default function App() {
               <Route path="/tasks" element={<Tasks />} />
               <Route path="/timeline" element={<Timeline />} />
               <Route path="/waiting" element={<WaitingOn />} />
+              <Route path="/releases" element={<Releases />} />
               <Route path="/sort" element={<SortProjects />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>

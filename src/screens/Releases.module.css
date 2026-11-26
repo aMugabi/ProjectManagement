@@ -1,0 +1,235 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1100px;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 20px;
+}
+.heading {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.note,
+.muted {
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+.note {
+  margin: 8px 0 4px;
+  line-height: 1.5;
+}
+.label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 10px 0 6px;
+}
+
+.formRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.input {
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 12.5px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font-family: inherit;
+  min-width: 0;
+}
+.button,
+.secondary,
+.link {
+  white-space: nowrap;
+  border-radius: 8px;
+  padding: 6px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.button {
+  border: none;
+  background: var(--accent);
+  color: var(--surface);
+}
+.button:disabled,
+.secondary:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.secondary {
+  border: 1px solid var(--border-input);
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+}
+.link {
+  border: none;
+  background: none;
+  padding: 2px 0;
+  color: var(--accent);
+}
+
+.release {
+  border-top: 1px solid var(--border-hairline-2);
+  padding: 10px 0;
+}
+.releaseHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.releaseName {
+  font-weight: 600;
+  font-size: 14px;
+}
+.status {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.status.failed {
+  color: var(--overdue-text);
+}
+.status.live {
+  color: var(--done);
+}
+.status.not-started {
+  color: var(--text-muted);
+}
+
+.strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.cell {
+  font-size: 11.5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-hairline-2);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.cell.passed,
+.badge.passed {
+  border-color: var(--done);
+  color: var(--done);
+}
+.cell.failed,
+.badge.failed {
+  border-color: var(--overdue-text);
+  color: var(--overdue-text);
+}
+.cell.waived,
+.badge.waived {
+  border-color: var(--prio-med);
+  color: var(--prio-med);
+}
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border: 1px solid;
+  border-radius: 5px;
+}
+
+.detail {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-raised);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  margin-top: 6px;
+}
+.table td {
+  padding: 6px 8px 6px 0;
+  border-top: 1px solid var(--border-hairline-2);
+  vertical-align: middle;
+}
+.stageName {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.right {
+  text-align: right;
+}
+
+.signForm {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+.formGrid label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+.wide {
+  grid-column: 1 / -1;
+}
+.problem {
+  color: var(--overdue-text);
+  font-size: 12.5px;
+  margin: 8px 0 0;
+}
+
+.history {
+  margin-top: 8px;
+}
+.entry {
+  font-size: 12.5px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border-hairline-2);
+}
+.entry.corrected {
+  opacity: 0.6;
+  text-decoration: line-through;
+  text-decoration-color: var(--text-faint);
+}
+
+@media (max-width: 640px) {
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+  .card {
+    padding: 12px 14px;
+  }
+}
