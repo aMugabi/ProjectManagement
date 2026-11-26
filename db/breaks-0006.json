@@ -1,0 +1,6 @@
+[
+ {"name": "app can't record finishes", "find": "grant update (completed_on, completions) on items to ledger_app;", "replace": ""},
+ {"name": "no finish index", "find": "create index items_completed on items (workspace_id, completed_on) where deleted_at is null and completed_on is not null;", "replace": ""},
+ {"name": "completions default null", "find": "add column completions date[] not null default '{}';", "replace": "add column completions date[];"},
+ {"name": "finish date dropped", "find": "  add column completed_on date,\n", "replace": ""}
+]

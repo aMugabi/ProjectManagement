@@ -5,7 +5,7 @@
  * pair, which is made when needed), or to nothing.
  */
 import type { FieldInfo } from '../shared/itemTypes';
-import { ITEM_TYPES, statusAllowed, firstStatus, typeOf } from '../shared/itemTypes';
+import { ITEM_TYPES, isDone, statusAllowed, firstStatus, typeOf } from '../shared/itemTypes';
 import { pairId } from '../shared/state';
 import type { ItemType, ProductPartner, Task, WorkspaceSnapshot } from '../types';
 
@@ -91,6 +91,28 @@ export function withDetail(t: Task, key: string, value: string): Task {
   const next: Task = { ...t, details };
   if (!Object.keys(details).length) delete next.details;
   return next;
+}
+
+/** How many finished occurrences a recurring item remembers. */
+export const COMPLETIONS_KEPT = 100;
+
+/**
+ * Keeps the finish date in step with done-ness (Step 4): finishing stamps today, reopening clears
+ * it. Applied after every change to an item.
+ */
+export function withCompletion(before: Task, after: Task, todayIso: string): Task {
+  if (!isDone(after)) {
+    if (after.completedOn === undefined) return after;
+    const next = { ...after };
+    delete next.completedOn;
+    return next;
+  }
+  return isDone(before) && after.completedOn ? after : { ...after, completedOn: todayIso };
+}
+
+/** A recurring item's occurrence finished today: remembered before it rolls over. */
+export function withOccurrenceDone(t: Task, todayIso: string): Task {
+  return { ...t, completions: [...(t.completions ?? []), todayIso].slice(-COMPLETIONS_KEPT) };
 }
 
 /** Who the item waits on; clearing it clears the chase date too (there is no one left to chase). */

@@ -45,6 +45,10 @@ export interface Task {
   chaseOn?: string;
   /** ISO date: until that day the item stays out of reminders and the dashboard. */
   snoozedUntil?: string;
+  /** ISO date it was finished (Step 4 reports); cleared when it's reopened. */
+  completedOn?: string;
+  /** A recurring item's finished occurrences (ISO dates, oldest first, the last 100). */
+  completions?: string[];
   subs: Subtask[];
   recurring: Recurring;
   deps: string[];

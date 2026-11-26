@@ -10,7 +10,8 @@ in Upstash Redis. The move is planned in the build plan (Step 1a), with a dry ru
 - `breaks.json` (0001), `breaks-0002.json` (0002), `breaks-0003.json` (0003, Step 2: waiting on,
   chase date, snooze) and `breaks-0004.json` (0004, Step 3: stages, releases, append-only
   sign-offs) and `breaks-0005.json` (0005: the redaction, and the change-log trigger 0005 redefines,
-  whose five breaks moved there from `breaks.json`): one deliberate break per rule. Every one must
+  whose five breaks moved there from `breaks.json`) and `breaks-0006.json` (0006, Step 4: finish dates):
+  one deliberate break per rule. Every one must
   make a test fail. Two 0001 rules are left out because 0002 replaces or shadows them: the task-only
   status check (dropped by 0002) and the known-type check (0002's status table refuses unknown
   types too).
@@ -53,8 +54,8 @@ touch "$SOCK/stop"
 ```
 Each run uses its own users, so runs can share one served database. `db/code-breaks.json` (the
 converter), `db/code-breaks-db.json` (reading, writing, the import), `db/code-breaks-step2.json`
-(the Step 2 fields end to end) and `db/code-breaks-step3.json` (releases and sign-offs) break the
-code on purpose;
+(the Step 2 fields end to end), `db/code-breaks-step3.json` (releases and sign-offs) and
+`db/code-breaks-step4.json` (finish dates, in the app too) break the code on purpose;
 run them with the skill's `break-code.py` (the second inside the namespace above). Left out as
 shadowed: sync stripping `legacy_*` keys from uploads (each type's schema already refuses unknown
 fields).

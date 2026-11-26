@@ -255,5 +255,24 @@ describe.skipIf(!OWNER_URL || !APP_URL)('products, partners and item types on Po
     expect(left.rows[0].n).toBe(0);
     await expect(redactWorkspace(owner, { email: `cat-${RUN}@example.org`, workspace: 'nope', text: 'Jane Okello', dryRun: true })).rejects.toThrow(/no workspace/);
   });
+
+  it("syncs when items were finished and a recurring item's finished occurrences (Step 4)", async () => {
+    const now = NOW + 10000;
+    const upload = rowsToDocument(await read(), 'default', now);
+    const i1 = upload.workspaceData.bank.tasks.find((t) => t.id === 'i1')!;
+    Object.assign(i1, { status: 'resolved', completedOn: '2026-11-27', updatedAt: now });
+    upload.workspaceData.bank.tasks.unshift(task('rec', '', { recurring: 'weekly', completions: ['2026-11-13', '2026-11-20'], updatedAt: now }));
+    const reply = await sync(upload, now);
+    expect(reply.workspaceData.bank.tasks.find((t) => t.id === 'i1')).toMatchObject({ completedOn: '2026-11-27' });
+    expect(reply.workspaceData.bank.tasks.find((t) => t.id === 'rec')!.completions).toEqual(['2026-11-13', '2026-11-20']);
+    const rows = await owner.query(
+      "select client_id, completed_on::text, completions::text[] from items where owner_id = $1 and client_id in ('i1', 'rec') order by 1",
+      [userId],
+    );
+    expect(rows.rows).toEqual([
+      { client_id: 'i1', completed_on: '2026-11-27', completions: [] },
+      { client_id: 'rec', completed_on: null, completions: ['2026-11-13', '2026-11-20'] },
+    ]);
+  });
 });
 

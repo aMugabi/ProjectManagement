@@ -101,15 +101,16 @@ describe('documentToRows / rowsToDocument', () => {
 
   it('keeps what it has to change, and says so', () => {
     const doc = document();
-    doc.tasks[2] = { ...doc.tasks[2], project: 'vanished', dueDate: 'soon', chaseOn: 'Friday', snoozedUntil: 'later' };
+    doc.tasks[2] = { ...doc.tasks[2], project: 'vanished', dueDate: 'soon', chaseOn: 'Friday', snoozedUntil: 'later', completedOn: 'today', completions: ['2026-11-01', 'last week'] };
     doc.projects[1] = { ...doc.projects[1], color: 'teal' };
     const { rows, notes } = documentToRows(doc, OWNER, ids());
     expect(notes.map((n) => n.where)).toEqual(['default/admin', 'default/t3', 'default/t3']);
     const t3 = rows.items.find((i) => i.client_id === 't3')!;
-    expect([t3.project_id, t3.due_date, t3.chase_on, t3.snoozed_until, t3.details]).toEqual([null, null, null, null,
-      { legacy_project: 'vanished', legacy_due_date: 'soon', legacy_chase_on: 'Friday', legacy_snoozed_until: 'later' }]);
+    expect([t3.project_id, t3.due_date, t3.chase_on, t3.snoozed_until, t3.completed_on, t3.completions, t3.details]).toEqual([null, null, null, null, null, [],
+      { legacy_project: 'vanished', legacy_due_date: 'soon', legacy_chase_on: 'Friday', legacy_snoozed_until: 'later', legacy_completed_on: 'today',
+        legacy_completions: ['2026-11-01', 'last week'] }]);
     const back = rowsToDocument(rows, 'default', NOW).tasks.find((t) => t.id === 't3')!;
-    expect([back.project, back.dueDate, back.chaseOn, back.snoozedUntil]).toEqual(['vanished', 'soon', 'Friday', 'later']); // the task itself is unchanged
+    expect([back.project, back.dueDate, back.chaseOn, back.snoozedUntil, back.completedOn, back.completions]).toEqual(['vanished', 'soon', 'Friday', 'later', 'today', ['2026-11-01', 'last week']]); // the task itself is unchanged
   });
 });
 
@@ -133,6 +134,8 @@ describe('summariseDocument', () => {
       (d) => (d.tasks[1].waitingOn = 'Bank ops'),
       (d) => (d.tasks[1].chaseOn = '2026-12-03'),
       (d) => (d.tasks[1].snoozedUntil = undefined),
+      (d) => (d.tasks[1].completedOn = '2026-11-26'),
+      (d) => (d.tasks[0].completions = ['2026-11-06']),
       (d) => (d.projects[0].color = '#000000'),
       (d) => (d.workspaces[1].name = 'Works'),
       (d) => (d.deleted['task:default:gone'] += 1),

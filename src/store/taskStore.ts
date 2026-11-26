@@ -2,13 +2,13 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ItemType, Priority, Project, Recurring, ReminderSettings, Status, Task, Workspace, WorkspaceSnapshot } from '../types';
 import { buildSeedTasks, PROJECTS } from '../data/seed';
-import { advanceRecurrence } from '../shared/date';
+import { advanceRecurrence, dateToIso, today } from '../shared/date';
 import { activeSnapshot, DEFAULT_REMINDERS, DEFAULT_WORKSPACE, emptySnapshot, normalizeState, ownEntry, STATE_VERSION, stripDeps, type SyncedState } from '../shared/state';
 import { CLOUD_ENABLED } from '../lib/cloud';
 import { createCloudStorage, onRemoteState } from '../lib/cloudStorage';
 import { STORE_KEY } from '../lib/deviceData';
 import { wouldCreateCycle } from '../lib/selectors';
-import { parseHome, sortProjects, uniqueId, withDate, withDetail, withWaiting, withHome, withoutGroup, withType, type HomeValue, type ProjectTarget } from '../lib/items';
+import { parseHome, sortProjects, uniqueId, withCompletion, withDate, withDetail, withOccurrenceDone, withWaiting, withHome, withoutGroup, withType, type HomeValue, type ProjectTarget } from '../lib/items';
 import { completeStatus, firstStatus, isDone, statusForPhase, typeOf, type Phase } from '../shared/itemTypes';
 import * as rel from '../lib/releases';
 
@@ -37,8 +37,9 @@ function nextProjectColor(existing: Project[]): string {
  */
 function completeTask(task: Task, status: Status = completeStatus(task)): Task {
   if (task.recurring) {
+    // The occurrence is remembered (for reports) before the item rolls over to the next one.
     return {
-      ...task,
+      ...withOccurrenceDone(task, dateToIso(today())),
       status: firstStatus(typeOf(task)),
       dueDate: advanceRecurrence(task.dueDate, task.recurring),
       subs: task.subs.map((sub) => ({ ...sub, done: false })),
@@ -56,7 +57,7 @@ export type GroupKind = keyof typeof GROUP_LIST;
  * other devices. Every task mutation goes through here (or stamps updatedAt itself).
  */
 function updateTask(tasks: Task[], id: string, change: (t: Task) => Task): Task[] {
-  return tasks.map((t) => (t.id === id ? { ...change(t), updatedAt: Date.now() } : t));
+  return tasks.map((t) => (t.id === id ? { ...withCompletion(t, change(t), dateToIso(today())), updatedAt: Date.now() } : t));
 }
 
 interface TaskStore extends SyncedState {
@@ -396,7 +397,8 @@ export const useTaskStore = create<TaskStore>()(
             tasks: s.tasks.map((t) => {
               if (t.id === id) {
                 // Each type has its own status for a column: a risk dropped in "In progress" is mitigating.
-                return { ...t, status: statusForPhase(typeOf(t), destPhase), order: orderById.get(id) ?? t.order, updatedAt: now };
+                const moved = { ...t, status: statusForPhase(typeOf(t), destPhase), order: orderById.get(id) ?? t.order, updatedAt: now };
+                return withCompletion(t, moved, dateToIso(today()));
               }
               if (!orderById.has(t.id) || orderById.get(t.id) === t.order) return t;
               return { ...t, order: orderById.get(t.id)!, updatedAt: now };

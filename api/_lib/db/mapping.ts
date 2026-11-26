@@ -69,6 +69,9 @@ export interface ItemRow {
   waiting_on: string;
   chase_on: string | null;
   snoozed_until: string | null;
+  /** Step 4: when it was finished, and a recurring item's finished occurrences. */
+  completed_on: string | null;
+  completions: string[];
   recurring: Recurring;
   remind_days_before: number | null;
   remind_off: boolean;
@@ -315,10 +318,15 @@ export function documentToRows(raw: unknown, ownerId: string, newId: () => strin
       if (t.chaseOn && !chaseOn) details.legacy_chase_on = t.chaseOn;
       const snoozedUntil = t.snoozedUntil && ISO_DATE.test(t.snoozedUntil) ? t.snoozedUntil : null;
       if (t.snoozedUntil && !snoozedUntil) details.legacy_snoozed_until = t.snoozedUntil;
+      const completedOn = t.completedOn && ISO_DATE.test(t.completedOn) ? t.completedOn : null;
+      if (t.completedOn && !completedOn) details.legacy_completed_on = t.completedOn;
+      const completions = Array.isArray(t.completions) && t.completions.every((d) => ISO_DATE.test(d)) ? t.completions : [];
+      if (t.completions !== undefined && completions !== t.completions) details.legacy_completions = t.completions;
       rows.items.push({
         id, workspace_id: wsId, owner_id: ownerId, client_id: t.id, type, project_id: projectId, product_id: productId, partner_id: partnerId,
         title: t.title, status, priority, due_date: dueDate, start_date: startDate, recurring,
         waiting_on: typeof t.waitingOn === 'string' ? t.waitingOn : '', chase_on: chaseOn, snoozed_until: snoozedUntil,
+        completed_on: completedOn, completions,
         remind_days_before: typeof t.remindDaysBefore === 'number' ? Math.max(0, Math.round(t.remindDaysBefore)) : null,
         remind_off: t.remindDaysBefore === null,
         notes: t.notes ?? '', sort_order: Number.isFinite(t.order) ? t.order : 0,
@@ -525,6 +533,10 @@ export function rowsToDocument(rows: Rows, activeWorkspaceId?: string, now = Dat
           if (chase) task.chaseOn = chase;
           const snooze = i.snoozed_until ?? (i.details.legacy_snoozed_until as string | undefined);
           if (snooze) task.snoozedUntil = snooze;
+          const completed = i.completed_on ?? (i.details.legacy_completed_on as string | undefined);
+          if (completed) task.completedOn = completed;
+          const completions = i.completions.length ? i.completions : (i.details.legacy_completions as string[] | undefined);
+          if (completions) task.completions = completions;
           if (i.remind_off) task.remindDaysBefore = null;
           else if (i.remind_days_before !== null) task.remindDaysBefore = i.remind_days_before;
           return task;
@@ -573,7 +585,7 @@ export function taskKey(workspace: string, t: Task): string {
   const remind = t.remindDaysBefore === undefined ? 'default' : String(t.remindDaysBefore);
   const details = t.details && Object.keys(t.details).length ? canonical(t.details) : '';
   return ['t', workspace, t.id, typeOf(t), t.project, t.product ?? '', t.partner ?? '', t.title, t.status, t.priority, t.dueDate, t.startDate ?? '',
-    t.waitingOn ?? '', t.chaseOn ?? '', t.snoozedUntil ?? '', t.recurring ?? '', remind, t.order, t.updatedAt, [...new Set(t.deps)].sort().join(','), JSON.stringify(t.subs.map((sub) => [sub.text, sub.done])),
+    t.waitingOn ?? '', t.chaseOn ?? '', t.snoozedUntil ?? '', t.completedOn ?? '', JSON.stringify(t.completions ?? []), t.recurring ?? '', remind, t.order, t.updatedAt, [...new Set(t.deps)].sort().join(','), JSON.stringify(t.subs.map((sub) => [sub.text, sub.done])),
     t.notes, details].join('|');
 }
 export const stageKey = (workspace: string, st: Stage) => ['S', workspace, st.id, st.name, st.order, st.updatedAt].join('|');

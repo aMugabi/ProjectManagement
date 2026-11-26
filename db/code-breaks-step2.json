@@ -16,8 +16,8 @@
  {
   "name": "import drops waiting on",
   "file": "api/_lib/db/rows.ts",
-  "find": "            r.waiting_on, r.chase_on, r.snoozed_until, r.recurring,",
-  "replace": "            '', r.chase_on, r.snoozed_until, r.recurring,",
+  "find": "            r.waiting_on, r.chase_on, r.snoozed_until, r.completed_on, r.completions, r.recurring,",
+  "replace": "            '', r.chase_on, r.snoozed_until, r.completed_on, r.completions, r.recurring,",
   "test": "npx vitest run api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
@@ -65,8 +65,8 @@
  {
   "name": "checksum ignores Step 2 fields",
   "file": "api/_lib/db/mapping.ts",
-  "find": "    t.waitingOn ?? '', t.chaseOn ?? '', t.snoozedUntil ?? '', t.recurring ?? '',",
-  "replace": "    t.recurring ?? '',",
+  "find": "    t.waitingOn ?? '', t.chaseOn ?? '', t.snoozedUntil ?? '', t.completedOn ?? '',",
+  "replace": "    t.completedOn ?? '',",
   "test": "npx vitest run api/_lib/db/mapping.test.ts api/_lib/db/sync.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
@@ -100,8 +100,8 @@
  {
   "name": "sync insert loses waiting on",
   "file": "api/_lib/db/sync.ts",
-  "find": "      i.waiting_on, i.chase_on, i.snoozed_until];",
-  "replace": "      '', i.chase_on, i.snoozed_until];",
+  "find": "      i.waiting_on, i.chase_on, i.snoozed_until, i.completed_on, i.completions];",
+  "replace": "      '', i.chase_on, i.snoozed_until, i.completed_on, i.completions];",
   "test": "npx vitest run api/_lib/db/catalogue.test.ts api/_lib/db/db.test.ts"
  }
 ]

@@ -238,7 +238,7 @@ describe.skipIf(!OWNER_URL || !APP_URL)('the database (TEST_DB_OWNER_URL, TEST_D
     const fresh = new pg.Client({ connectionString: url.toString() });
     await fresh.connect();
     try {
-      expect(await migrate(fresh)).toEqual(['0001_foundation.sql', '0002_products_partners_types.sql', '0003_waiting_snooze.sql', '0004_releases_signoffs.sql', '0005_redaction.sql']);
+      expect(await migrate(fresh)).toEqual(['0001_foundation.sql', '0002_products_partners_types.sql', '0003_waiting_snooze.sql', '0004_releases_signoffs.sql', '0005_redaction.sql', '0006_completions.sql']);
       expect(await migrate(fresh)).toEqual([]);
       expect((await fresh.query("select count(*)::int n from pg_tables where schemaname = 'public'")).rows[0].n).toBe(24);
     } finally {

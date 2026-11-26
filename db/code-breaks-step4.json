@@ -1,0 +1,107 @@
+[
+ {
+  "name": "converter drops the finish date",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "        completed_on: completedOn, completions,",
+  "replace": "        completed_on: null, completions,",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "converter drops completions",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "        completed_on: completedOn, completions,",
+  "replace": "        completed_on: completedOn, completions: [],",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "converter loses a bad finish date",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "      if (t.completedOn && !completedOn) details.legacy_completed_on = t.completedOn;\n",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "converter loses bad completions",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "      if (t.completions !== undefined && completions !== t.completions) details.legacy_completions = t.completions;\n",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "read back without the finish date",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "          if (completed) task.completedOn = completed;\n",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "read back without completions",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "          if (completions) task.completions = completions;\n",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "checksum ignores finishes",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "t.completedOn ?? '', JSON.stringify(t.completions ?? []), t.recurring ?? '',",
+  "replace": "t.recurring ?? '',",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "rows: completions read as dates",
+  "file": "api/_lib/db/rows.ts",
+  "find": "completions::text[] completions, recurring,",
+  "replace": "completions, recurring,",
+  "test": "npx vitest run api/_lib/db/catalogue.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "rows: finish date read as a Date",
+  "file": "api/_lib/db/rows.ts",
+  "find": "completed_on::text completed_on, completions",
+  "replace": "completed_on, completions",
+  "test": "npx vitest run api/_lib/db/catalogue.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "import drops completions",
+  "file": "api/_lib/db/rows.ts",
+  "find": "r.snoozed_until, r.completed_on, r.completions, r.recurring,",
+  "replace": "r.snoozed_until, r.completed_on, '{}', r.recurring,",
+  "test": "npx vitest run api/_lib/db/catalogue.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "sync never updates completions",
+  "file": "api/_lib/db/sync.ts",
+  "find": "completed_on = $21,\n              completions = $22, deleted_at = null",
+  "replace": "completed_on = $21,\n              deleted_at = null",
+  "test": "npx vitest run api/_lib/db/catalogue.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "sync insert drops completions",
+  "file": "api/_lib/db/sync.ts",
+  "find": "      i.waiting_on, i.chase_on, i.snoozed_until, i.completed_on, i.completions];",
+  "replace": "      i.waiting_on, i.chase_on, i.snoozed_until, i.completed_on, []];",
+  "test": "npx vitest run api/_lib/db/catalogue.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "app: reopening keeps the finish date",
+  "file": "src/lib/items.ts",
+  "find": "  if (!isDone(after)) {\n    if (after.completedOn === undefined) return after;",
+  "replace": "  if (!isDone(after)) {\n    if (true) return after;",
+  "test": "npx vitest run src/lib/items.test.ts"
+ },
+ {
+  "name": "app: edits restamp the finish",
+  "file": "src/lib/items.ts",
+  "find": "  return isDone(before) && after.completedOn ? after : { ...after, completedOn: todayIso };",
+  "replace": "  return { ...after, completedOn: todayIso };",
+  "test": "npx vitest run src/lib/items.test.ts"
+ },
+ {
+  "name": "app: completions unbounded",
+  "file": "src/lib/items.ts",
+  "find": ".slice(-COMPLETIONS_KEPT)",
+  "replace": "",
+  "test": "npx vitest run src/lib/items.test.ts"
+ }
+]

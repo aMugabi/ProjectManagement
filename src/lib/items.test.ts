@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptySnapshot } from '../shared/state';
 import type { Task } from '../types';
-import { convertProject, homeValue, withDate, withWaiting, sortProjects, sortSummary, uniqueId, parseHome, withDetail, withHome, withoutGroup, withType } from './items';
+import { convertProject, homeValue, withCompletion, withDate, withOccurrenceDone, withWaiting, sortProjects, sortSummary, uniqueId, parseHome, withDetail, withHome, withoutGroup, withType } from './items';
 
 const item = (extra: Partial<Task> = {}): Task => ({
   id: 'i', project: '', title: 'T', status: 'todo', priority: 'med', dueDate: '2026-12-01', subs: [], recurring: null, deps: [],
@@ -206,5 +206,28 @@ describe('withWaiting and withDate (Step 2)', () => {
     const t = item({ id: 'a', waitingOn: 'X' });
     expect(withDate(t, 'snoozedUntil', '2026-11-30')).toEqual({ ...t, snoozedUntil: '2026-11-30' });
     expect(withDate({ ...t, snoozedUntil: '2026-11-30' }, 'snoozedUntil', '')).toEqual(t);
+  });
+});
+
+describe('withCompletion and withOccurrenceDone (Step 4)', () => {
+  it('stamps the day an item is finished, keeps it while done, and clears it when reopened', () => {
+    const open = item({ id: 'a' });
+    const done = withCompletion(open, { ...open, status: 'done' }, '2026-11-27');
+    expect(done.completedOn).toBe('2026-11-27');
+    expect(withCompletion(done, { ...done, title: 'Renamed' }, '2026-11-30').completedOn).toBe('2026-11-27'); // an edit isn't a new finish
+    expect('completedOn' in withCompletion(done, { ...done, status: 'todo' }, '2026-11-30')).toBe(false);
+    const risk = item({ id: 'r', type: 'risk', status: 'open' });
+    expect(withCompletion(risk, { ...risk, status: 'closed' }, '2026-11-27').completedOn).toBe('2026-11-27'); // each type's own finish
+    expect(withCompletion(open, { ...open, title: 'x' }, '2026-11-27')).toEqual({ ...open, title: 'x' });
+  });
+
+  it("remembers a recurring item's finished occurrences, the last 100", () => {
+    let t = item({ id: 'a', recurring: 'weekly' });
+    t = withOccurrenceDone(t, '2026-11-20');
+    t = withOccurrenceDone(t, '2026-11-27');
+    expect(t.completions).toEqual(['2026-11-20', '2026-11-27']);
+    const many = withOccurrenceDone({ ...t, completions: Array.from({ length: 100 }, (_, i) => `2020-01-${String((i % 28) + 1).padStart(2, '0')}`) }, '2026-11-27');
+    expect(many.completions).toHaveLength(100);
+    expect(many.completions!.at(-1)).toBe('2026-11-27');
   });
 });

@@ -177,8 +177,8 @@
  {
   "name": "sync: edits don't undelete",
   "file": "api/_lib/db/sync.ts",
-  "find": "waiting_on = $18, chase_on = $19, snoozed_until = $20, deleted_at = null\n        where id = $21`,",
-  "replace": "waiting_on = $18, chase_on = $19, snoozed_until = $20\n        where id = $21`,",
+  "find": "completed_on = $21,\n              completions = $22, deleted_at = null\n        where id = $23`,",
+  "replace": "completed_on = $21,\n              completions = $22\n        where id = $23`,",
   "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
