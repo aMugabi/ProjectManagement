@@ -78,6 +78,9 @@ export async function importDocument(
     const counts = await owner.query<{ table_name: string; n: number }>(
       `select 'workspaces' table_name, count(*)::int n from workspaces where owner_id = $1
        union all select 'projects', count(*)::int from projects where owner_id = $1
+       union all select 'products', count(*)::int from products where owner_id = $1
+       union all select 'partners', count(*)::int from partners where owner_id = $1
+       union all select 'product_partners', count(*)::int from product_partners where owner_id = $1
        union all select 'items', count(*)::int from items where owner_id = $1
        union all select 'item_links', count(*)::int from item_links where owner_id = $1
        union all select 'legacy_deletions', count(*)::int from legacy_deletions where workspace_id in (select id from workspaces where owner_id = $1)`,

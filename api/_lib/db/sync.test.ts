@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mergeStates } from '../../../src/shared/merge';
 import { documentToRows, rowsToDocument, type Rows } from './mapping';
 import { isEmptyPlan, planSync } from './sync';
-import { NOW, OWNER, document, ids, task } from './testing/document';
+import { NOW, OWNER, document, documentWithCatalogue, ids, task } from './testing/document';
 
 /** Rows as stored, and what a sync of `upload` would merge to (as syncDocument does). */
 function setup(change?: (rows: Rows) => void) {
@@ -102,7 +102,7 @@ describe('planSync', () => {
     stale.workspaceData.work.projects.push({ id: 'old-project', name: 'Old', color: '#000000', updatedAt: longAgo });
     const plan = planSync(rows, merge(stale), NOW);
     expect(plan.refused).toEqual(['project:work:old-project']);
-    expect(plan.newProjects).toEqual([]);
+    expect(plan.newGroups).toEqual([]);
   });
 
   it('stores the copy the merge chose when two devices edited in the same millisecond', () => {
@@ -121,9 +121,72 @@ describe('planSync', () => {
     upload.reminders = { ...upload.reminders, digestTime: '06:00', updatedAt: NOW };
     const plan = planSync(rows, merge(upload), NOW);
     expect(plan.newWorkspaces.map((w) => w.client_id)).toEqual(['new-ws']);
-    expect(plan.newProjects.map((p) => [p.workspace, p.client_id])).toEqual([['new-ws', 'np']]);
+    expect(plan.newGroups.map((p) => [p.table, p.workspace, p.client_id])).toEqual([['projects', 'new-ws', 'np']]);
     expect(plan.newItems.map((i) => [i.workspace, i.client_id, i.project])).toEqual([['new-ws', 'x1', 'np']]);
     expect(plan.workspaceUpdates.map((w) => w.name)).toEqual(['Work renamed']);
     expect(plan.settings).toMatchObject({ edited_ms: NOW, reminders: { digestTime: '06:00' } });
+  });
+});
+
+describe('planSync with products, partners, pairs and item types (Step 1b)', () => {
+  function setup1b() {
+    const { rows } = documentToRows(documentWithCatalogue(), OWNER, ids(), NOW - 60000);
+    const merge = (upload: unknown) => mergeStates(rowsToDocument(rows, 'default', NOW), upload, 'default');
+    return { rows, merge };
+  }
+
+  it('writes nothing when the upload holds nothing new', () => {
+    const { rows, merge } = setup1b();
+    expect(isEmptyPlan(planSync(rows, merge(documentWithCatalogue()), NOW))).toBe(true);
+  });
+
+  it('adds products, partners, pairs and typed items', () => {
+    const { rows, merge } = setup1b();
+    const upload = documentWithCatalogue();
+    const bank = upload.workspaceData.bank;
+    bank.products.push({ id: 'savings', name: 'Savings', color: '#123456', updatedAt: NOW });
+    bank.partners.push({ id: 'bureau', name: 'Bureau', color: '#654321', updatedAt: NOW });
+    bank.pairs.push({ id: 'savings+bureau', product: 'savings', partner: 'bureau', updatedAt: NOW });
+    bank.tasks.unshift(task('r2', '', { type: 'risk', status: 'open', product: 'savings', partner: 'bureau', details: { impact: 'high' }, updatedAt: NOW }));
+    const plan = planSync(rows, merge(upload), NOW);
+    expect(plan.newGroups.map((g) => [g.table, g.client_id])).toEqual([['products', 'savings'], ['partners', 'bureau']]);
+    expect(plan.newPairs).toEqual([{ workspace: 'bank', client_id: 'savings+bureau', product: 'savings', partner: 'bureau', edited_ms: NOW }]);
+    expect(plan.newItems.map((i) => [i.client_id, i.type, i.product, i.partner, i.details])).toEqual([['r2', 'risk', 'savings', 'bureau', { impact: 'high' }]]);
+  });
+
+  it("doesn't store an item that fails its type's checks, and says why", () => {
+    const { rows, merge } = setup1b();
+    const upload = documentWithCatalogue();
+    upload.workspaceData.bank.tasks.unshift(task('bad', '', { type: 'risk', status: 'todo', updatedAt: NOW }));
+    upload.workspaceData.bank.tasks[1] = { ...upload.workspaceData.bank.tasks[1], title: 'Renamed risk', updatedAt: NOW }; // r1, valid
+    const plan = planSync(rows, merge(upload), NOW);
+    expect(plan.invalid).toEqual([{ key: 'task:bank:bad', problem: 'status "todo" isn\'t one a risk can have' }]);
+    expect(plan.newItems).toEqual([]);
+    expect(plan.itemUpdates.map((i) => i.title)).toEqual(['Renamed risk']); // the rest of the upload is stored
+  });
+
+  it('ends a pair at its deletion time, and refuses a stale copy of it later', () => {
+    const { rows, merge } = setup1b();
+    const upload = documentWithCatalogue();
+    upload.workspaceData.bank.pairs = [];
+    upload.deleted['pair:bank:loans+telco'] = NOW - 5;
+    const plan = planSync(rows, merge(upload), NOW);
+    const pair = rows.pairs.find((p) => p.client_id === 'loans+telco')!;
+    expect(plan.deletions).toEqual([{ table: 'product_partners', id: pair.id, deleted_ms: NOW - 5 }]);
+
+    const longAgo = NOW - 400 * 24 * 3600 * 1000;
+    pair.deleted_ms = longAgo + 1;
+    const stale = documentWithCatalogue();
+    stale.workspaceData.bank.pairs[0].updatedAt = longAgo;
+    expect(planSync(rows, merge(stale), NOW).refused).toEqual(['pair:bank:loans+telco']);
+  });
+
+  it('moves an item to another type, product and partner as one update', () => {
+    const { rows, merge } = setup1b();
+    const upload = documentWithCatalogue();
+    // i1, an issue: as a risk its fields must be a risk's (impact is a level there, not text).
+    upload.workspaceData.bank.tasks[1] = { ...upload.workspaceData.bank.tasks[1], type: 'risk', status: 'open', partner: 'telco', details: { impact: 'high' }, updatedAt: NOW };
+    const [update] = planSync(rows, merge(upload), NOW).itemUpdates;
+    expect([update.type, update.status, update.product, update.partner]).toEqual(['risk', 'open', '', 'telco']);
   });
 });

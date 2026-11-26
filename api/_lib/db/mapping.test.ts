@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TOMBSTONE_TTL_MS, type SyncedState } from '../../../src/shared/state';
 import { documentToRows, rowsToDocument, summariseDocument } from './mapping';
-import { NOW, OWNER, document, ids } from './testing/document';
+import { NOW, OWNER, document, documentWithCatalogue, ids, task } from './testing/document';
 
 describe('documentToRows / rowsToDocument', () => {
   it('comes back exactly as it went in', () => {
@@ -115,9 +115,9 @@ describe('documentToRows / rowsToDocument', () => {
 describe('summariseDocument', () => {
   it('counts each workspace', () => {
     expect(summariseDocument(document()).workspaces).toEqual([
-      { workspace: 'default', projects: 2, tasks: 3, done: 1, dependencies: 1, deletions: 1 },
-      { workspace: 'work', projects: 1, tasks: 2, done: 0, dependencies: 1, deletions: 1 },
-      { workspace: 'constructor', projects: 0, tasks: 0, done: 0, dependencies: 0, deletions: 0 },
+      { workspace: 'default', projects: 2, products: 0, partners: 0, pairs: 0, tasks: 3, done: 1, dependencies: 1, deletions: 1 },
+      { workspace: 'work', projects: 1, products: 0, partners: 0, pairs: 0, tasks: 2, done: 0, dependencies: 1, deletions: 1 },
+      { workspace: 'constructor', projects: 0, products: 0, partners: 0, pairs: 0, tasks: 0, done: 0, dependencies: 0, deletions: 0 },
     ]);
   });
 
@@ -142,5 +142,107 @@ describe('summariseDocument', () => {
     const reordered = document();
     reordered.tasks.reverse();
     expect(summariseDocument(reordered).checksum).toBe(base);
+  });
+});
+
+describe('products, partners, pairs and item types (Step 1b)', () => {
+  it('come back exactly as they went in', () => {
+    const doc = documentWithCatalogue();
+    const { rows, notes } = documentToRows(doc, OWNER, ids());
+    expect(notes).toEqual([]);
+    expect(rowsToDocument(rows, 'default', NOW)).toEqual(doc);
+    for (const list of [rows.products, rows.partners, rows.pairs, rows.items] as unknown[][]) list.reverse();
+    expect(rowsToDocument(rows, 'default', NOW)).toEqual(doc);
+  });
+
+  it('make the rows the database expects', () => {
+    const { rows } = documentToRows(documentWithCatalogue(), OWNER, ids());
+    expect(rows.products.map((p) => p.client_id)).toEqual(['loans', 'cards']);
+    expect(rows.partners.map((p) => p.client_id)).toEqual(['telco', 'fintech']);
+    const id = (list: { id: string; client_id: string }[], c: string) => list.find((r) => r.client_id === c)!.id;
+    expect(rows.pairs).toEqual([expect.objectContaining({ client_id: 'loans+telco', product_id: id(rows.products, 'loans'), partner_id: id(rows.partners, 'telco') })]);
+    const r1 = rows.items.find((i) => i.client_id === 'r1')!;
+    expect(r1).toMatchObject({ type: 'risk', status: 'mitigating', product_id: id(rows.products, 'loans'), partner_id: id(rows.partners, 'telco'), project_id: null });
+    expect(r1.details).toEqual({ legacy_project: '', likelihood: 'med', impact: 'high', mitigation: 'Second line' });
+    expect(rows.items.find((i) => i.client_id === 'i1')).toMatchObject({ type: 'issue', product_id: null, partner_id: id(rows.partners, 'fintech') });
+    expect(rows.items.find((i) => i.client_id === 'tb')).toMatchObject({ type: 'task', product_id: id(rows.products, 'loans') });
+    expect(rows.legacyDeletions.map((d) => [d.kind, d.client_id])).toEqual(
+      expect.arrayContaining([['product', 'old-product'], ['pair', 'cards+fintech']]),
+    );
+  });
+
+  it('keeps an item that names a product and partner that are not a pair: the partner as a note', () => {
+    const doc = documentWithCatalogue();
+    doc.workspaceData.bank.tasks.push(task('np', '', { product: 'cards', partner: 'telco' }));
+    const { rows, notes } = documentToRows(doc, OWNER, ids());
+    expect(notes).toEqual([{ where: 'bank/np', note: "cards and telco aren't a pair; the partner kept as a note" }]);
+    expect(rows.items.find((i) => i.client_id === 'np')).toMatchObject({ partner_id: null, details: expect.objectContaining({ legacy_partner: 'telco' }) });
+    expect(summariseDocument(rowsToDocument(rows, 'default', NOW))).toEqual(summariseDocument(doc));
+  });
+
+  it('keeps an item whose product or partner no longer exists, naming them in notes', () => {
+    const doc = documentWithCatalogue();
+    doc.workspaceData.bank.tasks.push(task('orphan', '', { product: 'gone-product', partner: 'gone-partner' }));
+    const { rows, notes } = documentToRows(doc, OWNER, ids());
+    expect(notes.map((n) => n.note)).toEqual(['product "gone-product" doesn\'t exist; kept as a note', 'partner "gone-partner" doesn\'t exist; kept as a note']);
+    expect(rows.items.find((i) => i.client_id === 'orphan')).toMatchObject({ product_id: null, partner_id: null });
+    const back = rowsToDocument(rows, 'default', NOW).workspaceData.bank.tasks.find((t) => t.id === 'orphan')!;
+    expect([back.product, back.partner]).toEqual(['gone-product', 'gone-partner']);
+  });
+
+  it('keeps an item in a plain project and a product at once: the product as a note, and says so', () => {
+    const doc = documentWithCatalogue();
+    doc.workspaceData.bank.projects.push({ id: 'ops', name: 'Ops', color: '#6b7a4f', updatedAt: NOW - 100 });
+    doc.workspaceData.bank.tasks.push(task('both', 'ops', { product: 'loans' }));
+    const { rows, notes } = documentToRows(doc, OWNER, ids());
+    expect(notes).toEqual([{ where: 'bank/both', note: 'belongs to a plain project and to a product or partner; kept as it is' },
+      { where: 'bank/both', note: 'in a plain project and a product or partner at once; the product and partner kept as notes' }]);
+    const row = rows.items.find((i) => i.client_id === 'both')!;
+    expect([row.project_id !== null, row.product_id, row.details.legacy_product]).toEqual([true, null, 'loans']); // as the database requires
+    expect(summariseDocument(rowsToDocument(rows, 'default', NOW))).toEqual(summariseDocument(doc));
+  });
+
+  it('deletes a product at its deletion time, and tells devices', () => {
+    const doc = documentWithCatalogue();
+    doc.deleted['product:bank:cards'] = NOW - 10; // newer than the product's edit
+    const { rows } = documentToRows(doc, OWNER, ids());
+    expect(rows.products.find((p) => p.client_id === 'cards')!.deleted_ms).toBe(NOW - 10);
+    const back = rowsToDocument(rows, 'default', NOW);
+    expect(back.workspaceData.bank.products.map((p) => p.id)).toEqual(['loans']);
+    expect(back.deleted['product:bank:cards']).toBe(NOW - 10);
+  });
+
+  it('refuses a status the type doesn\'t have, setting its first one, and says so', () => {
+    const doc = documentWithCatalogue();
+    doc.workspaceData.bank.tasks[0].status = 'todo'; // a risk
+    const { rows, notes } = documentToRows(doc, OWNER, ids());
+    expect(rows.items.find((i) => i.client_id === 'r1')!.status).toBe('open');
+    expect(notes.map((n) => n.note)).toEqual(expect.arrayContaining(['status "todo" isn\'t one a risk can have; set to open']));
+  });
+
+  it('counts them, with each type\'s own finished statuses', () => {
+    const bank = summariseDocument(documentWithCatalogue()).workspaces.find((w) => w.workspace === 'bank')!;
+    expect(bank).toEqual({ workspace: 'bank', projects: 0, products: 2, partners: 2, pairs: 1, tasks: 6, done: 1, dependencies: 1, deletions: 2 });
+  });
+
+  it('notices any change to them in the checksum', () => {
+    const base = summariseDocument(documentWithCatalogue()).checksum;
+    const changes: ((d: SyncedState) => void)[] = [
+      (d) => (d.workspaceData.bank.tasks[0].type = 'issue'),
+      (d) => (d.workspaceData.bank.tasks[0].product = 'cards'),
+      (d) => (d.workspaceData.bank.tasks[0].partner = undefined),
+      (d) => (d.workspaceData.bank.tasks[0].details = { likelihood: 'low', impact: 'high', mitigation: 'Second line' }),
+      (d) => (d.workspaceData.bank.products[0].name = 'Loans'),
+      (d) => (d.workspaceData.bank.partners[1].color = '#000000'),
+      (d) => (d.workspaceData.bank.pairs[0].updatedAt += 1),
+    ];
+    for (const change of changes) {
+      const d = documentWithCatalogue();
+      change(d);
+      expect(summariseDocument(d).checksum).not.toBe(base);
+    }
+    const reordered = documentWithCatalogue();
+    reordered.workspaceData.bank.tasks[0].details = { mitigation: 'Second line', impact: 'high', likelihood: 'med' };
+    expect(summariseDocument(reordered).checksum).toBe(base); // key order doesn't matter
   });
 });

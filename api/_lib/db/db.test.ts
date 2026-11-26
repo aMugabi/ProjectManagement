@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { migrate } from '../../../scripts/db-migrate';
 import { withUser } from './client';
 import { ImportRefused, importDocument, verifyAsApp } from './import';
-import { rowsToDocument, summariseDocument } from './mapping';
+import { emptyRows, rowsToDocument, summariseDocument } from './mapping';
 import { readRows } from './rows';
 import { syncDocument } from './sync';
 import { NOW, document, task } from './testing/document';
@@ -51,7 +51,7 @@ describe.skipIf(!OWNER_URL || !APP_URL)('the database (TEST_DB_OWNER_URL, TEST_D
     expect(result.committed).toBe(true);
     expect(result.after).toEqual(result.before);
     expect(result.before).toEqual(summariseDocument(document(), NOW));
-    expect(result.rowCounts).toEqual({ workspaces: 3, projects: 3, items: 5, item_links: 2, legacy_deletions: 2 });
+    expect(result.rowCounts).toEqual({ workspaces: 3, projects: 3, products: 0, partners: 0, product_partners: 0, items: 5, item_links: 2, legacy_deletions: 2 });
     const who = await owner.query("select email, (select provider || ' ' || secret_hash from identities where user_id = users.id) identity from users where id = $1", [userId]);
     expect(who.rows[0]).toEqual({ email: ME, identity: 'password scrypt$00$11' });
   });
@@ -82,7 +82,7 @@ describe.skipIf(!OWNER_URL || !APP_URL)('the database (TEST_DB_OWNER_URL, TEST_D
 
   it("shows another user none of it", async () => {
     const other = (await owner.query('insert into users (email) values ($1) returning id', [`other-${RUN}@example.org`])).rows[0].id as string;
-    const none = { workspaces: [], projects: [], items: [], links: [], legacyDeletions: [], settings: null };
+    const none = emptyRows();
     expect(await withUser(app, other, (c) => readRows(c, userId))).toEqual(none); // even asking for the first user's
     expect(await readRows(owner, other)).toEqual(none); // the owner bypasses the policies: the query filters by itself
   });
@@ -238,9 +238,9 @@ describe.skipIf(!OWNER_URL || !APP_URL)('the database (TEST_DB_OWNER_URL, TEST_D
     const fresh = new pg.Client({ connectionString: url.toString() });
     await fresh.connect();
     try {
-      expect(await migrate(fresh)).toEqual(['0001_foundation.sql']);
+      expect(await migrate(fresh)).toEqual(['0001_foundation.sql', '0002_products_partners_types.sql']);
       expect(await migrate(fresh)).toEqual([]);
-      expect((await fresh.query("select count(*)::int n from pg_tables where schemaname = 'public'")).rows[0].n).toBe(17);
+      expect((await fresh.query("select count(*)::int n from pg_tables where schemaname = 'public'")).rows[0].n).toBe(21);
     } finally {
       await fresh.end();
       await owner.query(`drop database ${name}`);

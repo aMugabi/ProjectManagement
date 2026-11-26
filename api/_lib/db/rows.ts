@@ -4,7 +4,7 @@
  * dates as 'YYYY-MM-DD' text, so no time zone on either side can move a due date.
  */
 import type { Queryable } from './client.js';
-import type { ItemRow, LegacyDeletionRow, LinkRow, ProjectRow, Rows, SettingsRow, WorkspaceRow } from './mapping.js';
+import type { GroupRow, ItemRow, LegacyDeletionRow, LinkRow, PairRow, Rows, SettingsRow, WorkspaceRow } from './mapping.js';
 
 const ms = (column: string) => `round(extract(epoch from ${column}) * 1000)::float8`;
 const time = (field: string) => `to_timestamp(r.${field} / 1000.0)`;
@@ -20,13 +20,22 @@ export async function readRows(db: Queryable, userId: string): Promise<Rows> {
        from workspaces where id in (${MINE})`,
     [userId],
   );
-  const projects = await db.query<ProjectRow>(
-    `select id, workspace_id, owner_id, client_id, name, color, sort_order, ${ms('edited_at')} edited_ms, ${ms('deleted_at')} deleted_ms
-       from projects where workspace_id in (${MINE})`,
+  const groups = (table: 'projects' | 'products' | 'partners') =>
+    db.query<GroupRow>(
+      `select id, workspace_id, owner_id, client_id, name, color, sort_order, ${ms('edited_at')} edited_ms, ${ms('deleted_at')} deleted_ms
+         from ${table} where workspace_id in (${MINE})`,
+      [userId],
+    );
+  const projects = await groups('projects');
+  const products = await groups('products');
+  const partners = await groups('partners');
+  const pairs = await db.query<PairRow>(
+    `select id, workspace_id, owner_id, client_id, product_id, partner_id, ${ms('edited_at')} edited_ms, ${ms('deleted_at')} deleted_ms
+       from product_partners where workspace_id in (${MINE})`,
     [userId],
   );
   const items = await db.query<ItemRow>(
-    `select id, workspace_id, owner_id, client_id, type, project_id, title, status, priority, due_date::text due_date,
+    `select id, workspace_id, owner_id, client_id, type, project_id, product_id, partner_id, title, status, priority, due_date::text due_date,
             start_date::text start_date, recurring, remind_days_before, remind_off, notes, sort_order, subtasks, details,
             ${ms('created_at')} created_ms, ${ms('edited_at')} edited_ms, ${ms('deleted_at')} deleted_ms
        from items where workspace_id in (${MINE})`,
@@ -41,6 +50,9 @@ export async function readRows(db: Queryable, userId: string): Promise<Rows> {
   return {
     workspaces: workspaces.rows,
     projects: projects.rows,
+    products: products.rows,
+    partners: partners.rows,
+    pairs: pairs.rows,
     items: items.rows,
     links: links.rows,
     legacyDeletions: legacyDeletions.rows,
@@ -62,21 +74,30 @@ export async function insertRows(db: Queryable, rows: Rows): Promise<void> {
      select r.id, r.owner_id, 'owner' from jsonb_to_recordset($1::jsonb) as r(id uuid, owner_id uuid)`,
     [json(rows.workspaces)],
   );
+  for (const [table, list] of [['projects', rows.projects], ['products', rows.products], ['partners', rows.partners]] as const) {
+    await db.query(
+      `insert into ${table} (id, workspace_id, owner_id, client_id, name, color, sort_order, edited_at, deleted_at)
+       select r.id, r.workspace_id, r.owner_id, r.client_id, r.name, r.color, r.sort_order, ${time('edited_ms')}, ${time('deleted_ms')}
+         from jsonb_to_recordset($1::jsonb)
+           as r(id uuid, workspace_id uuid, owner_id uuid, client_id text, name text, color text, sort_order float8, edited_ms float8, deleted_ms float8)`,
+      [json(list)],
+    );
+  }
   await db.query(
-    `insert into projects (id, workspace_id, owner_id, client_id, name, color, sort_order, edited_at, deleted_at)
-     select r.id, r.workspace_id, r.owner_id, r.client_id, r.name, r.color, r.sort_order, ${time('edited_ms')}, ${time('deleted_ms')}
+    `insert into product_partners (id, workspace_id, owner_id, client_id, product_id, partner_id, edited_at, deleted_at)
+     select r.id, r.workspace_id, r.owner_id, r.client_id, r.product_id, r.partner_id, ${time('edited_ms')}, ${time('deleted_ms')}
        from jsonb_to_recordset($1::jsonb)
-         as r(id uuid, workspace_id uuid, owner_id uuid, client_id text, name text, color text, sort_order float8, edited_ms float8, deleted_ms float8)`,
-    [json(rows.projects)],
+         as r(id uuid, workspace_id uuid, owner_id uuid, client_id text, product_id uuid, partner_id uuid, edited_ms float8, deleted_ms float8)`,
+    [json(rows.pairs)],
   );
   await db.query(
-    `insert into items (id, workspace_id, owner_id, client_id, type, project_id, title, status, priority, due_date, start_date,
+    `insert into items (id, workspace_id, owner_id, client_id, type, project_id, product_id, partner_id, title, status, priority, due_date, start_date,
                         recurring, remind_days_before, remind_off, notes, sort_order, subtasks, details, created_at, edited_at, deleted_at)
-     select r.id, r.workspace_id, r.owner_id, r.client_id, r.type, r.project_id, r.title, r.status, r.priority, r.due_date, r.start_date,
+     select r.id, r.workspace_id, r.owner_id, r.client_id, r.type, r.project_id, r.product_id, r.partner_id, r.title, r.status, r.priority, r.due_date, r.start_date,
             r.recurring, r.remind_days_before, r.remind_off, r.notes, r.sort_order, r.subtasks, r.details,
             ${time('created_ms')}, ${time('edited_ms')}, ${time('deleted_ms')}
        from jsonb_to_recordset($1::jsonb)
-         as r(id uuid, workspace_id uuid, owner_id uuid, client_id text, type text, project_id uuid, title text, status text, priority text,
+         as r(id uuid, workspace_id uuid, owner_id uuid, client_id text, type text, project_id uuid, product_id uuid, partner_id uuid, title text, status text, priority text,
               due_date date, start_date date, recurring text, remind_days_before int, remind_off boolean, notes text, sort_order float8,
               subtasks jsonb, details jsonb, created_ms float8, edited_ms float8, deleted_ms float8)`,
     [json(rows.items)],
@@ -103,7 +124,7 @@ export async function insertRows(db: Queryable, rows: Rows): Promise<void> {
 }
 
 /** The change-log triggers on workspace data, switched off during the import (which writes baselines instead). */
-export const LOGGED_TABLES = ['workspaces', 'workspace_members', 'projects', 'items', 'item_links'] as const;
+export const LOGGED_TABLES = ['workspaces', 'workspace_members', 'projects', 'products', 'partners', 'product_partners', 'items', 'item_links'] as const;
 
 /**
  * "History starts here": one 'baseline' entry per imported row, keyed as the triggers key them.
@@ -117,6 +138,12 @@ export async function writeBaseline(db: Queryable, workspaceIds: string[]): Prom
      select workspace_id, 'workspace_members', workspace_id || ':' || user_id, 'baseline', to_jsonb(t) from workspace_members t where workspace_id = any($1::uuid[])
      union all
      select workspace_id, 'projects', id::text, 'baseline', to_jsonb(t) from projects t where workspace_id = any($1::uuid[])
+     union all
+     select workspace_id, 'products', id::text, 'baseline', to_jsonb(t) from products t where workspace_id = any($1::uuid[])
+     union all
+     select workspace_id, 'partners', id::text, 'baseline', to_jsonb(t) from partners t where workspace_id = any($1::uuid[])
+     union all
+     select workspace_id, 'product_partners', id::text, 'baseline', to_jsonb(t) from product_partners t where workspace_id = any($1::uuid[])
      union all
      select workspace_id, 'items', id::text, 'baseline', to_jsonb(t) from items t where workspace_id = any($1::uuid[])
      union all

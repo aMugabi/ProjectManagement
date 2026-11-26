@@ -4,237 +4,321 @@
   "file": "api/_lib/db/rows.ts",
   "find": "due_date::text due_date,",
   "replace": "due_date,",
-  "test": "npx vitest run api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "start dates read as Date objects",
   "file": "api/_lib/db/rows.ts",
   "find": "start_date::text start_date,",
   "replace": "start_date,",
-  "test": "npx vitest run api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "owner read of items not filtered by user",
   "file": "api/_lib/db/rows.ts",
   "find": "from items where workspace_id in (${MINE})`,",
   "replace": "from items where $1::uuid is not null`,",
-  "test": "npx vitest run api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "owner read of workspaces not filtered by user",
   "file": "api/_lib/db/rows.ts",
   "find": "from workspaces where id in (${MINE})`,",
   "replace": "from workspaces where $1::uuid is not null`,",
-  "test": "npx vitest run api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "times rounded to seconds",
   "file": "api/_lib/db/rows.ts",
   "find": "const ms = (column: string) => `round(extract(epoch from ${column}) * 1000)::float8`;",
   "replace": "const ms = (column: string) => `round(extract(epoch from ${column})) * 1000::float8`;",
-  "test": "npx vitest run api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "memberships not imported",
   "file": "api/_lib/db/rows.ts",
   "find": "    `insert into workspace_members (workspace_id, user_id, role)\n     select r.id, r.owner_id, 'owner' from jsonb_to_recordset($1::jsonb) as r(id uuid, owner_id uuid)`,",
   "replace": "    `select 1 where $1::jsonb is not null`,",
-  "test": "npx vitest run api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "never-remind not written",
   "file": "api/_lib/db/rows.ts",
   "find": "r.recurring, r.remind_days_before, r.remind_off, r.notes,",
   "replace": "r.recurring, r.remind_days_before, false, r.notes,",
-  "test": "npx vitest run api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "legacy deletions not imported",
   "file": "api/_lib/db/rows.ts",
   "find": "    `insert into legacy_deletions (workspace_id, kind, client_id, deleted_at)\n     select r.workspace_id, r.kind, r.client_id, ${time('deleted_ms')}\n       from jsonb_to_recordset($1::jsonb) as r(workspace_id uuid, kind text, client_id text, deleted_ms float8)`,",
   "replace": "    `select 1 where $1::jsonb is not null`,",
-  "test": "npx vitest run api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "settings not imported",
   "file": "api/_lib/db/rows.ts",
   "find": "  if (rows.settings) {\n    await db.query(",
   "replace": "  if (false) {\n    await db.query(",
-  "test": "npx vitest run api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "list order not kept",
   "file": "api/_lib/db/rows.ts",
   "find": "${time('created_ms')}, ${time('edited_ms')}, ${time('deleted_ms')}\n       from jsonb_to_recordset($1::jsonb)\n         as r(id uuid, workspace_id uuid, owner_id uuid, client_id text, type text,",
   "replace": "now(), ${time('edited_ms')}, ${time('deleted_ms')}\n       from jsonb_to_recordset($1::jsonb)\n         as r(id uuid, workspace_id uuid, owner_id uuid, client_id text, type text,",
-  "test": "npx vitest run api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "items get no baseline",
   "file": "api/_lib/db/rows.ts",
   "find": "     select workspace_id, 'items', id::text, 'baseline', to_jsonb(t) from items t where workspace_id = any($1::uuid[])\n     union all\n",
   "replace": "",
-  "test": "npx vitest run api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "items logged as inserts during import",
   "file": "api/_lib/db/rows.ts",
-  "find": "export const LOGGED_TABLES = ['workspaces', 'workspace_members', 'projects', 'items', 'item_links'] as const;",
-  "replace": "export const LOGGED_TABLES = ['workspaces', 'workspace_members', 'projects', 'item_links'] as const;",
-  "test": "npx vitest run api/_lib/db/db.test.ts"
+  "find": "export const LOGGED_TABLES = ['workspaces', 'workspace_members', 'projects', 'products', 'partners', 'product_partners', 'items', 'item_links'] as const;",
+  "replace": "export const LOGGED_TABLES = ['workspaces', 'workspace_members', 'projects', 'products', 'partners', 'product_partners', 'item_links'] as const;",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "log triggers left off after import",
   "file": "api/_lib/db/import.ts",
   "find": "    for (const table of LOGGED_TABLES) await owner.query(`alter table ${table} enable trigger log_${table}`);\n",
   "replace": "",
-  "test": "npx vitest run api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "mismatch not refused",
   "file": "api/_lib/db/import.ts",
   "find": "const sameSummary = (a: Summary, b: Summary) => JSON.stringify(a) === JSON.stringify(b);",
   "replace": "const sameSummary = (_a: Summary, _b: Summary) => true;",
-  "test": "npx vitest run api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "dry run commits",
   "file": "api/_lib/db/import.ts",
   "find": "await owner.query(input.dryRun ? 'rollback' : 'commit');",
   "replace": "await owner.query('commit');",
-  "test": "npx vitest run api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "second import not refused",
   "file": "api/_lib/db/import.ts",
   "find": "    if (existing.rowCount) throw new ImportRefused(",
   "replace": "    if (false) throw new ImportRefused(",
-  "test": "npx vitest run api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "email not normalised",
   "file": "api/_lib/db/import.ts",
   "find": "const email = input.email.trim().toLowerCase();",
   "replace": "const email = input.email;",
-  "test": "npx vitest run api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "password not carried over",
   "file": "api/_lib/db/import.ts",
   "find": "    if (input.passwordHash) {\n      await owner.query(",
   "replace": "    if (false) {\n      await owner.query(",
-  "test": "npx vitest run api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "app check doesn't set the user",
   "file": "api/_lib/db/import.ts",
   "find": "    await app.query(\"select set_config('app.user_id', $1, true)\", [userId]);\n",
   "replace": "",
-  "test": "npx vitest run api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "sync: no per-user lock",
   "file": "api/_lib/db/sync.ts",
   "find": "  await db.query('select pg_advisory_xact_lock(hashtextextended($1, 0))', [`ledger-sync:${userId}`]);\n",
   "replace": "",
-  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "sync: stale task copies accepted",
   "file": "api/_lib/db/sync.ts",
-  "find": "      if (deletedAt !== null && t.updatedAt <= deletedAt) {",
-  "replace": "      if (false) {",
-  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+  "find": "      if (at !== null && t.updatedAt <= at) {\n        plan.refused.push(`task:${w.id}:${t.id}`);",
+  "replace": "      if (false) {\n        plan.refused.push(`task:${w.id}:${t.id}`);",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "sync: stale project copies accepted",
   "file": "api/_lib/db/sync.ts",
-  "find": "      if (deletedAt !== null && p.updatedAt <= deletedAt) plan.refused.push(",
-  "replace": "      if (false) plan.refused.push(",
-  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+  "find": "        if (at !== null && p.updatedAt <= at) plan.refused.push(`${kind}:${w.id}:${p.id}`);",
+  "replace": "        if (false) plan.refused.push(`${kind}:${w.id}:${p.id}`);",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "sync: new tasks all made at once",
   "file": "api/_lib/db/sync.ts",
   "find": "created_ms: now - plan.newItems.length,",
   "replace": "created_ms: now,",
-  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "sync: ties left as stored",
   "file": "api/_lib/db/sync.ts",
-  "find": "} else if (row.deleted_ms !== null || taskKey(w.id, t) !== taskKey(w.id, currentTasks.get(t.id)!)) {",
-  "replace": "} else if (row.deleted_ms !== null || t.updatedAt > currentTasks.get(t.id)!.updatedAt) {",
-  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+  "find": "const changed = !row || row.deleted_ms !== null || taskKey(w.id, t) !== taskKey(w.id, currentTasks.get(t.id)!);",
+  "replace": "const changed = !row || row.deleted_ms !== null || t.updatedAt > currentTasks.get(t.id)!.updatedAt;",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "sync: deletions not written",
   "file": "api/_lib/db/sync.ts",
-  "find": "      if (row.deleted_ms === null && !liveTasks.has(row.client_id) && at !== undefined) plan.deletions.push({ table: 'items', id: row.id, deleted_ms: at });",
-  "replace": "      void at;",
-  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+  "find": "    dropped('task', 'items', new Set(snap.tasks.map((t) => t.id)), itemRows);",
+  "replace": "    void itemRows;",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "sync: edits don't undelete",
   "file": "api/_lib/db/sync.ts",
-  "find": "              edited_at = ${time('$14')}, deleted_at = null\n        where id = $15`,",
-  "replace": "              edited_at = ${time('$14')}\n        where id = $15`,",
-  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+  "find": "              details = $16, edited_at = ${time('$17')}, deleted_at = null\n        where id = $18`,",
+  "replace": "              details = $16, edited_at = ${time('$17')}\n        where id = $18`,",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "sync: removed dependencies kept",
   "file": "api/_lib/db/sync.ts",
   "find": "    for (const to of have) if (!wanted.has(to)) await db.query(",
   "replace": "    for (const to of have) if (false && !wanted.has(to)) await db.query(",
-  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "sync: new dependencies not written",
   "file": "api/_lib/db/sync.ts",
   "find": "      if (!have.has(to)) await db.query('insert into item_links",
   "replace": "      if (false) await db.query('insert into item_links",
-  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "sync: settings not written",
   "file": "api/_lib/db/sync.ts",
   "find": "  if (plan.settings) {\n    await db.query(\n      `insert into user_settings",
   "replace": "  if (false) {\n    await db.query(\n      `insert into user_settings",
-  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "sync: settings changes not planned",
   "file": "api/_lib/db/sync.ts",
   "find": "  if (remindersKey(merged.reminders) !== remindersKey(current.reminders)) {",
   "replace": "  if (false) {",
-  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "sync: refused copies not marked for the device",
   "file": "api/_lib/db/sync.ts",
   "find": "  for (const key of plan.refused) reply.deleted[key] = now;\n",
   "replace": "",
-  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "sync: new workspaces not created",
   "file": "api/_lib/db/sync.ts",
   "find": "  for (const w of plan.newWorkspaces) {\n    const made",
   "replace": "  for (const w of plan.newWorkspaces.slice(0, 0)) {\n    const made",
-  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "sync: edits not detected",
   "file": "api/_lib/db/sync.ts",
   "find": "    } else if (workspaceKey(w) !== workspaceKey(currentWorkspaces.get(w.id)!)) {",
   "replace": "    } else if (false) {",
-  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
   "name": "sync: task project not resolved",
   "file": "api/_lib/db/sync.ts",
-  "find": "    const id = projectIds.get(`${workspace}:${project}`) ?? null;",
-  "replace": "    const id = null;",
-  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts"
+  "find": "    const project_id = groupIds.get(`projects:${workspace}:${i.project}`) ?? null;",
+  "replace": "    const project_id = null;",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "1b sync: invalid items stored",
+  "file": "api/_lib/db/sync.ts",
+  "find": "      } else if (problem) {\n        plan.invalid.push({ key: `task:${w.id}:${t.id}`, problem });\n      } else if (!row) {",
+  "replace": "      } else if (!row) {",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "1b sync: new products not created",
+  "file": "api/_lib/db/sync.ts",
+  "find": "  for (const g of plan.newGroups) {\n    const workspace",
+  "replace": "  for (const g of plan.newGroups.filter((x) => x.table !== 'products')) {\n    const workspace",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "1b sync: new pairs not created",
+  "file": "api/_lib/db/sync.ts",
+  "find": "    await db.query(\n      `insert into product_partners (workspace_id, owner_id, client_id, product_id, partner_id, edited_at) values ($1, $2, $3, $4, $5, ${time('$6')})`,\n      [workspace, userId, p.client_id, product, partner, p.edited_ms],\n    );\n",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "1b sync: item product not resolved",
+  "file": "api/_lib/db/sync.ts",
+  "find": "    let product_id = i.product ? (groupIds.get(`products:${workspace}:${i.product}`) ?? null) : null;",
+  "replace": "    let product_id = null as string | null;",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "1b sync: item type not written",
+  "file": "api/_lib/db/sync.ts",
+  "find": "    return [i.type, project_id, product_id, partner_id,",
+  "replace": "    return ['task', project_id, product_id, partner_id,",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "1b sync: non-pair not caught",
+  "file": "api/_lib/db/sync.ts",
+  "find": "    if (product_id && partner_id && !pairIds.has(`${product_id}|${partner_id}`)) {",
+  "replace": "    if (false) {",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "1b sync: pair deletions not planned",
+  "file": "api/_lib/db/sync.ts",
+  "find": "    dropped('pair', 'product_partners', new Set(snap.pairs.map((p) => p.id)), pairRows);",
+  "replace": "    void pairRows;",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "1b rows: products not read",
+  "file": "api/_lib/db/rows.ts",
+  "find": "  const products = await groups('products');",
+  "replace": "  const products = { rows: [] as GroupRow[] };",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "1b rows: pairs not imported",
+  "file": "api/_lib/db/rows.ts",
+  "find": "  await db.query(\n    `insert into product_partners (id, workspace_id, owner_id, client_id, product_id, partner_id, edited_at, deleted_at)",
+  "replace": "  if (false) await db.query(\n    `insert into product_partners (id, workspace_id, owner_id, client_id, product_id, partner_id, edited_at, deleted_at)",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "1b rows: item partner not imported",
+  "file": "api/_lib/db/rows.ts",
+  "find": "     select r.id, r.workspace_id, r.owner_id, r.client_id, r.type, r.project_id, r.product_id, r.partner_id, r.title,",
+  "replace": "     select r.id, r.workspace_id, r.owner_id, r.client_id, r.type, r.project_id, r.product_id, null, r.title,",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "1b rows: products get no baseline",
+  "file": "api/_lib/db/rows.ts",
+  "find": "     select workspace_id, 'products', id::text, 'baseline', to_jsonb(t) from products t where workspace_id = any($1::uuid[])\n     union all\n",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "1b rows: pairs logged as inserts during import",
+  "file": "api/_lib/db/rows.ts",
+  "find": "export const LOGGED_TABLES = ['workspaces', 'workspace_members', 'projects', 'products', 'partners', 'product_partners', 'items', 'item_links'] as const;",
+  "replace": "export const LOGGED_TABLES = ['workspaces', 'workspace_members', 'projects', 'products', 'partners', 'items', 'item_links'] as const;",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  }
 ]

@@ -79,8 +79,8 @@
  {
   "name": "missing project not kept",
   "file": "api/_lib/db/mapping.ts",
-  "find": "        details.legacy_project = t.project;\n",
-  "replace": "",
+  "find": "        details.legacy_project = t.project;\n        if (t.project)",
+  "replace": "        if (t.project)",
   "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
  },
  {
@@ -93,8 +93,8 @@
  {
   "name": "projects not sorted",
   "file": "api/_lib/db/mapping.ts",
-  "find": "        .filter((p) => p.deleted_ms === null)\n        .sort(bySort)",
-  "replace": "        .filter((p) => p.deleted_ms === null)",
+  "find": "const groups = (list: GroupRow[]): Project[] =>\n      list\n        .filter((p) => p.deleted_ms === null)\n        .sort(bySort)",
+  "replace": "const groups = (list: GroupRow[]): Project[] =>\n      list\n        .filter((p) => p.deleted_ms === null)",
   "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
  },
  {
@@ -128,22 +128,22 @@
  {
   "name": "summary ignores titles",
   "file": "api/_lib/db/mapping.ts",
-  "find": "t.id, t.project, t.title, t.status,",
-  "replace": "t.id, t.project, t.status,",
+  "find": "t.id, typeOf(t), t.project, t.product ?? '', t.partner ?? '', t.title, t.status,",
+  "replace": "t.id, typeOf(t), t.project, t.product ?? '', t.partner ?? '', t.status,",
   "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
  },
  {
   "name": "summary counts overridden deletions",
   "file": "api/_lib/db/mapping.ts",
-  "find": "const deletions = Object.entries(state.deleted).filter(([key]) => !live.has(key));",
-  "replace": "const deletions = Object.entries(state.deleted);",
+  "find": "const deletions = Object.entries(state.deleted).filter(([key]) => !live.has(key) && filed(key));",
+  "replace": "const deletions = Object.entries(state.deleted).filter(([key]) => filed(key));",
   "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
  },
  {
   "name": "summary sensitive to task order",
   "file": "api/_lib/db/mapping.ts",
-  "find": "  lines.sort();\n  return { workspaces, checksum",
-  "replace": "  return { workspaces, checksum",
+  "find": "  lines.sort();\n  return { workspaces: perWorkspace, checksum",
+  "replace": "  return { workspaces: perWorkspace, checksum",
   "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
  },
  {
@@ -156,8 +156,120 @@
  {
   "name": "duplicate dependency counted twice",
   "file": "api/_lib/db/mapping.ts",
-  "find": "t.order, t.updatedAt, [...new Set(t.deps)].sort().join(','),",
-  "replace": "t.order, t.updatedAt, [...t.deps].sort().join(','),",
+  "find": "t.recurring ?? '', remind, t.order, t.updatedAt, [...new Set(t.deps)].sort().join(','),",
+  "replace": "t.recurring ?? '', remind, t.order, t.updatedAt, [...t.deps].sort().join(','),",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "1b: products not imported",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "let productId = t.product ? (productIds.get(t.product) ?? null) : null;",
+  "replace": "let productId = null as string | null;",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "1b: partners not imported",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "let partnerId = t.partner ? (partnerIds.get(t.partner) ?? null) : null;",
+  "replace": "let partnerId = null as string | null;",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "1b: type not kept",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "id, workspace_id: wsId, owner_id: ownerId, client_id: t.id, type, project_id: projectId,",
+  "replace": "id, workspace_id: wsId, owner_id: ownerId, client_id: t.id, type: 'task' as ItemType, project_id: projectId,",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "1b: type not exported",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "          if (i.type !== 'task') task.type = i.type;\n",
+  "replace": "",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "1b: product not exported",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "          if (product) task.product = product;\n",
+  "replace": "",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "1b: partner not exported",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "          if (partner) task.partner = partner;\n",
+  "replace": "",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "1b: type fields not exported",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "          if (Object.keys(own).length) task.details = own;\n",
+  "replace": "",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "1b: non-pair not caught",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "if (productId && partnerId && !pairIds.has(`${productId}|${partnerId}`)) {",
+  "replace": "if (false) {",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "1b: project and product not caught",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "if (projectId && (productId || partnerId)) {",
+  "replace": "if (false) {",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "1b: missing product not kept",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "        details.legacy_product = t.product;\n        notes.push({ where, note: `product",
+  "replace": "        notes.push({ where, note: `product",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "1b: pairs not imported",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "      rows.pairs.push({\n",
+  "replace": "      void ({\n",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "1b: pairs not exported",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "        .filter((p) => p.deleted_ms === null)\n        .sort((a, b) => a.client_id.localeCompare(b.client_id))",
+  "replace": "        .filter((p) => p.deleted_ms === null && false)\n        .sort((a, b) => a.client_id.localeCompare(b.client_id))",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "1b: deleted products not told to devices",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "    tombstones('product', products);\n",
+  "replace": "",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "1b: details keys compared in stored order",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "    return `{${Object.keys(value).sort().map(",
+  "replace": "    return `{${Object.keys(value).map(",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "1b: finished counted as status done only",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "      done: snap.tasks.filter((t) => isDone(t)).length,",
+  "replace": "      done: snap.tasks.filter((t) => t.status === 'done').length,",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "1b: status not checked per type",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "const status = statusAllowed(type, t.status) ? t.status : firstStatus(type);",
+  "replace": "const status = t.status;",
   "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
  }
 ]

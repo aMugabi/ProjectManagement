@@ -64,9 +64,10 @@ async function main() {
   try {
     const result = await importDocument(owner, { email, passwordHash: process.env.AUTH_PASSWORD_HASH, mfa, document, dryRun });
     console.log(dryRun ? 'Dry run: everything below was done, then rolled back.\n' : 'Imported and committed.\n');
-    console.log('workspace        projects  tasks  done  dependencies  deletions');
+    const cols = ['projects', 'products', 'partners', 'pairs', 'tasks', 'done', 'dependencies', 'deletions'] as const;
+    console.log(['workspace'.padEnd(16), ...cols.map((c) => (c === 'tasks' ? 'items' : c).padStart(c.length + 1))].join(''));
     for (const w of result.before.workspaces) {
-      console.log(`${w.workspace.padEnd(16).slice(0, 16)} ${String(w.projects).padStart(8)} ${String(w.tasks).padStart(6)} ${String(w.done).padStart(5)} ${String(w.dependencies).padStart(13)} ${String(w.deletions).padStart(10)}`);
+      console.log([w.workspace.padEnd(16).slice(0, 16), ...cols.map((c) => String(w[c]).padStart(c.length + 1))].join(''));
     }
     console.log(`\nRows: ${Object.entries(result.rowCounts).map(([t, n]) => `${t} ${n}`).join(', ')}; baseline log entries ${result.baselineEntries}`);
     console.log(`Checksum before ${result.before.checksum}\n         after  ${result.after.checksum}  (same)`);

@@ -60,3 +60,43 @@ export function document(): SyncedState {
     NOW,
   );
 }
+
+/**
+ * The same, plus Step 1b data in a fourth workspace: products, partners, a pair, one item of each
+ * type (in a product, a partner, a pair, or nothing) with its own fields, and remembered
+ * deletions of a product and a pair.
+ */
+export function documentWithCatalogue(): SyncedState {
+  const doc = document();
+  return normalizeState(
+    {
+      ...doc,
+      workspaces: [...doc.workspaces, { id: 'bank', name: 'Bank', updatedAt: NOW - 4000 }],
+      workspaceData: {
+        ...doc.workspaceData,
+        bank: {
+          projects: [],
+          products: [
+            { id: 'loans', name: 'Mobile loans', color: '#7b6a94', updatedAt: NOW - 3900 },
+            { id: 'cards', name: 'Cards', color: '#a08a4b', updatedAt: NOW - 3800 },
+          ],
+          partners: [
+            { id: 'telco', name: 'Telco', color: '#4f7a86', updatedAt: NOW - 3700 },
+            { id: 'fintech', name: 'Fintech', color: '#5b7f95', updatedAt: NOW - 3600 },
+          ],
+          pairs: [{ id: 'loans+telco', product: 'loans', partner: 'telco', updatedAt: NOW - 3500 }],
+          tasks: [
+            task('r1', '', { type: 'risk', status: 'mitigating', priority: 'high', product: 'loans', partner: 'telco', details: { likelihood: 'med', impact: 'high', mitigation: 'Second line' } }),
+            task('i1', '', { type: 'issue', status: 'open', partner: 'fintech', details: { impact: 'Settlement late' } }),
+            task('d1', '', { type: 'decision', status: 'decided', product: 'cards', details: { decidedBy: 'Committee', decidedOn: '2026-11-20' } }),
+            task('dep1', '', { type: 'dependency', status: 'waiting', product: 'loans', partner: 'telco', details: { onWhom: 'Telco IT' }, deps: ['r1'] }),
+            task('cr1', '', { type: 'change_request', status: 'approved', details: { approver: 'Head of IT' } }),
+            task('tb', '', { product: 'loans', title: 'Plain task on a product' }),
+          ],
+        },
+      },
+      deleted: { ...doc.deleted, 'product:bank:old-product': NOW - 900, 'pair:bank:cards+fintech': NOW - 800 },
+    },
+    NOW,
+  );
+}
