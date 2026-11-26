@@ -1,0 +1,307 @@
+[
+ {
+  "name": "app role may bypass RLS",
+  "find": "create role ledger_app nologin nobypassrls;",
+  "replace": "create role ledger_app nologin bypassrls;"
+ },
+ {
+  "name": "empty user id not treated as none",
+  "find": "select nullif(current_setting('app.user_id', true), '')::uuid",
+  "replace": "select current_setting('app.user_id', true)::uuid"
+ },
+ {
+  "name": "memberships not filtered by user",
+  "find": "from public.workspace_members where user_id = app.user_id()",
+  "replace": "from public.workspace_members"
+ },
+ {
+  "name": "membership lookup not security definer",
+  "find": "language sql stable security definer set search_path = pg_catalog, public\n  as $$ select coalesce(array_agg(workspace_id)",
+  "replace": "language sql stable set search_path = pg_catalog, public\n  as $$ select coalesce(array_agg(workspace_id)"
+ },
+ {
+  "name": "RLS off: workspaces",
+  "find": "alter table workspaces enable row level security;\n",
+  "replace": ""
+ },
+ {
+  "name": "RLS off: workspace_members",
+  "find": "alter table workspace_members enable row level security;\n",
+  "replace": ""
+ },
+ {
+  "name": "RLS off: projects",
+  "find": "alter table projects enable row level security;\n",
+  "replace": ""
+ },
+ {
+  "name": "RLS off: items",
+  "find": "alter table items enable row level security;\n",
+  "replace": ""
+ },
+ {
+  "name": "RLS off: item_links",
+  "find": "alter table item_links enable row level security;\n",
+  "replace": ""
+ },
+ {
+  "name": "RLS off: legacy_deletions",
+  "find": "alter table legacy_deletions enable row level security;\n",
+  "replace": ""
+ },
+ {
+  "name": "RLS off: change_log",
+  "find": "alter table change_log enable row level security;\n",
+  "replace": ""
+ },
+ {
+  "name": "RLS off: user_settings",
+  "find": "alter table user_settings enable row level security;\n",
+  "replace": ""
+ },
+ {
+  "name": "RLS off: push_subscriptions",
+  "find": "alter table push_subscriptions enable row level security;\n",
+  "replace": ""
+ },
+ {
+  "name": "RLS off: reminders_sent",
+  "find": "alter table reminders_sent enable row level security;\n",
+  "replace": ""
+ },
+ {
+  "name": "policy open: workspaces",
+  "find": "on workspaces\n  using (id = any ((select app.workspace_ids())::uuid[]))",
+  "replace": "on workspaces\n  using (true)"
+ },
+ {
+  "name": "policy open: workspace_members",
+  "find": "on workspace_members\n  using (workspace_id = any ((select app.workspace_ids())::uuid[]))",
+  "replace": "on workspace_members\n  using (true)"
+ },
+ {
+  "name": "policy open: projects",
+  "find": "on projects\n  using (workspace_id = any ((select app.workspace_ids())::uuid[])) with check",
+  "replace": "on projects\n  using (true) with check"
+ },
+ {
+  "name": "check open: projects",
+  "find": "on projects\n  using (workspace_id = any ((select app.workspace_ids())::uuid[])) with check (workspace_id = any ((select app.workspace_ids())::uuid[]))",
+  "replace": "on projects\n  using (workspace_id = any ((select app.workspace_ids())::uuid[])) with check (true)"
+ },
+ {
+  "name": "policy open: items",
+  "find": "on items\n  using (workspace_id = any ((select app.workspace_ids())::uuid[])) with check",
+  "replace": "on items\n  using (true) with check"
+ },
+ {
+  "name": "check open: items",
+  "find": "on items\n  using (workspace_id = any ((select app.workspace_ids())::uuid[])) with check (workspace_id = any ((select app.workspace_ids())::uuid[]))",
+  "replace": "on items\n  using (workspace_id = any ((select app.workspace_ids())::uuid[])) with check (true)"
+ },
+ {
+  "name": "policy open: item_links",
+  "find": "on item_links\n  using (workspace_id = any ((select app.workspace_ids())::uuid[])) with check",
+  "replace": "on item_links\n  using (true) with check"
+ },
+ {
+  "name": "check open: item_links",
+  "find": "on item_links\n  using (workspace_id = any ((select app.workspace_ids())::uuid[])) with check (workspace_id = any ((select app.workspace_ids())::uuid[]))",
+  "replace": "on item_links\n  using (workspace_id = any ((select app.workspace_ids())::uuid[])) with check (true)"
+ },
+ {
+  "name": "policy open: legacy_deletions",
+  "find": "on legacy_deletions\n  using (workspace_id = any ((select app.workspace_ids())::uuid[]))",
+  "replace": "on legacy_deletions\n  using (true)"
+ },
+ {
+  "name": "policy open: change_log",
+  "find": "on change_log\n  using (workspace_id = any ((select app.workspace_ids())::uuid[]))",
+  "replace": "on change_log\n  using (true)"
+ },
+ {
+  "name": "policy open: user_settings",
+  "find": "on user_settings\n  using (user_id = app.user_id())",
+  "replace": "on user_settings\n  using (true)"
+ },
+ {
+  "name": "policy open: push_subscriptions",
+  "find": "on push_subscriptions\n  using (user_id = app.user_id())",
+  "replace": "on push_subscriptions\n  using (true)"
+ },
+ {
+  "name": "policy open: reminders_sent",
+  "find": "on reminders_sent\n  using (user_id = app.user_id())",
+  "replace": "on reminders_sent\n  using (true)"
+ },
+ {
+  "name": "workspaces: any column updatable",
+  "find": "grant update (name, edited_at, deleted_at) on workspaces to ledger_app;",
+  "replace": "grant update on workspaces to ledger_app;"
+ },
+ {
+  "name": "projects: any column updatable",
+  "find": "grant update (name, color, edited_at, deleted_at) on projects to ledger_app;",
+  "replace": "grant update on projects to ledger_app;"
+ },
+ {
+  "name": "items: any column updatable",
+  "find": "grant update (type, project_id, title, status, priority, due_date, start_date, recurring, remind_days_before,\n  remind_off, notes, sort_order, subtasks, details, edited_at, deleted_at) on items to ledger_app;",
+  "replace": "grant update on items to ledger_app;"
+ },
+ {
+  "name": "app may delete items and projects",
+  "find": "grant select, insert on projects, items to ledger_app;",
+  "replace": "grant select, insert, delete on projects, items to ledger_app;"
+ },
+ {
+  "name": "app may insert workspaces",
+  "find": "grant select on workspaces to ledger_app;",
+  "replace": "grant select, insert on workspaces to ledger_app;"
+ },
+ {
+  "name": "app may insert memberships",
+  "find": "grant select on workspace_members to ledger_app;",
+  "replace": "grant select, insert on workspace_members to ledger_app;"
+ },
+ {
+  "name": "app may write the change log",
+  "find": "grant select on legacy_deletions, change_log, item_types to ledger_app;",
+  "replace": "grant select on legacy_deletions, change_log, item_types to ledger_app;\ngrant insert, update, delete on change_log to ledger_app;"
+ },
+ {
+  "name": "change log editable",
+  "find": "create trigger change_log_append_only before update or delete on change_log\n  for each row execute function app.refuse_change_log_edits();",
+  "replace": ""
+ },
+ {
+  "name": "change log truncatable",
+  "find": "create trigger change_log_no_truncate before truncate on change_log\n  for each statement execute function app.refuse_change_log_edits();",
+  "replace": ""
+ },
+ {
+  "name": "no-op saves logged",
+  "find": "if tg_op = 'UPDATE' and (new_row - 'updated_at') = (old_row - 'updated_at') then",
+  "replace": "if false then"
+ },
+ {
+  "name": "write time counts as a change",
+  "find": "if tg_op = 'UPDATE' and (new_row - 'updated_at') = (old_row - 'updated_at') then",
+  "replace": "if tg_op = 'UPDATE' and new_row = old_row then"
+ },
+ {
+  "name": "no actor recorded",
+  "find": "lower(tg_op), app.user_id(), old_row, new_row);",
+  "replace": "lower(tg_op), null, old_row, new_row);"
+ },
+ {
+  "name": "no before recorded",
+  "find": "lower(tg_op), app.user_id(), old_row, new_row);",
+  "replace": "lower(tg_op), app.user_id(), null, new_row);"
+ },
+ {
+  "name": "row key from first column only",
+  "find": "from unnest(tg_argv[1:]) with ordinality",
+  "replace": "from unnest(tg_argv[1:2]) with ordinality"
+ },
+ {
+  "name": "items filed under the wrong workspace",
+  "find": "on items\n  for each row execute function app.log_change('workspace_id', 'id');",
+  "replace": "on items\n  for each row execute function app.log_change('id', 'id');"
+ },
+ {
+  "name": "not logged: workspaces",
+  "find": "create trigger log_workspaces after insert or update or delete on workspaces\n  for each row execute function app.log_change('id', 'id');\n",
+  "replace": ""
+ },
+ {
+  "name": "not logged: workspace_members",
+  "find": "create trigger log_workspace_members after insert or update or delete on workspace_members\n  for each row execute function app.log_change('workspace_id', 'workspace_id', 'user_id');\n",
+  "replace": ""
+ },
+ {
+  "name": "not logged: items",
+  "find": "create trigger log_items after insert or update or delete on items\n  for each row execute function app.log_change('workspace_id', 'id');\n",
+  "replace": ""
+ },
+ {
+  "name": "not logged: item_links",
+  "find": "create trigger log_item_links after insert or update or delete on item_links\n  for each row execute function app.log_change('workspace_id', 'from_id', 'to_id', 'kind');\n",
+  "replace": ""
+ },
+ {
+  "name": "not logged: projects",
+  "find": "create trigger log_projects after insert or update or delete on projects\n  for each row execute function app.log_change('workspace_id', 'id');\n",
+  "replace": ""
+ },
+ {
+  "name": "updated_at not stamped on items",
+  "find": "create trigger touch_items before update on items for each row execute function app.touch_updated_at();",
+  "replace": ""
+ },
+ {
+  "name": "project from another workspace allowed",
+  "find": "foreign key (workspace_id, project_id) references projects (workspace_id, id),",
+  "replace": "foreign key (project_id) references projects (id),"
+ },
+ {
+  "name": "link target from another workspace",
+  "find": "foreign key (workspace_id, to_id) references items (workspace_id, id),",
+  "replace": "foreign key (to_id) references items (id),"
+ },
+ {
+  "name": "link source from another workspace",
+  "find": "foreign key (workspace_id, from_id) references items (workspace_id, id),",
+  "replace": "foreign key (from_id) references items (id),"
+ },
+ {
+  "name": "self-dependency allowed",
+  "find": "  check (from_id <> to_id)\n",
+  "replace": "  check (true)\n"
+ },
+ {
+  "name": "any task status",
+  "find": "check (type <> 'task' or status in ('todo', 'doing', 'blocked', 'done'))",
+  "replace": "check (true)"
+ },
+ {
+  "name": "any priority",
+  "find": "priority text not null default 'med' check (priority in ('high', 'med', 'low')),",
+  "replace": "priority text not null default 'med',"
+ },
+ {
+  "name": "any item type",
+  "find": "type text not null default 'task' references item_types,",
+  "replace": "type text not null default 'task',"
+ },
+ {
+  "name": "client id not unique per workspace",
+  "find": "  unique (workspace_id, client_id),\n  unique (workspace_id, id),\n  -- A project",
+  "replace": "  unique (workspace_id, id),\n  -- A project"
+ },
+ {
+  "name": "email any case",
+  "find": "email text not null unique check (email = lower(btrim(email)) and email like '_%@_%'),",
+  "replace": "email text not null unique,"
+ },
+ {
+  "name": "identities not unique",
+  "find": "  secret_hash text,\n  created_at timestamptz not null default now(),\n  unique (provider, subject)",
+  "replace": "  secret_hash text,\n  created_at timestamptz not null default now()"
+ },
+ {
+  "name": "session stores anything",
+  "find": "token_hash text primary key check (token_hash ~ '^[0-9a-f]{64}$'),",
+  "replace": "token_hash text primary key,"
+ },
+ {
+  "name": "workspace created without membership",
+  "find": "  insert into public.workspace_members (workspace_id, user_id, role) values (ws, me, 'owner');\n",
+  "replace": ""
+ },
+ {
+  "name": "workspace created with no user",
+  "find": "  if me is null then\n    raise exception 'no user for this request' using errcode = '42501';\n  end if;\n",
+  "replace": ""
+ }
+]
