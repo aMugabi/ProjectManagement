@@ -1,0 +1,107 @@
+[
+ {
+  "name": "no-op saves logged",
+  "find": "if tg_op = 'UPDATE' and (new_row - 'updated_at') = (old_row - 'updated_at') then",
+  "replace": "if false then"
+ },
+ {
+  "name": "write time counts as a change",
+  "find": "if tg_op = 'UPDATE' and (new_row - 'updated_at') = (old_row - 'updated_at') then",
+  "replace": "if tg_op = 'UPDATE' and new_row = old_row then"
+ },
+ {
+  "name": "no actor recorded",
+  "find": "lower(tg_op), app.user_id(), old_row, new_row);",
+  "replace": "lower(tg_op), null, old_row, new_row);"
+ },
+ {
+  "name": "no before recorded",
+  "find": "lower(tg_op), app.user_id(), old_row, new_row);",
+  "replace": "lower(tg_op), app.user_id(), null, new_row);"
+ },
+ {
+  "name": "row key from first column only",
+  "find": "from unnest(tg_argv[1:]) with ordinality",
+  "replace": "from unnest(tg_argv[1:2]) with ordinality"
+ },
+ {
+  "name": "anyone can redact",
+  "find": "revoke all on function app.redact(uuid, text, text, text) from public;",
+  "replace": "grant execute on function app.redact(uuid, text, text, text) to ledger_app;"
+ },
+ {
+  "name": "redaction's edits logged",
+  "find": "  if exists (select 1 from app.redacting where txid = txid_current()) then\n    return null;\n  end if;\n",
+  "replace": ""
+ },
+ {
+  "name": "log editable by the owner",
+  "find": "  if tg_op = 'UPDATE' and exists (select 1 from app.redacting where txid = txid_current()) then\n    return new;\n  end if;\n",
+  "replace": "  if tg_op <> 'TRUNCATE' then\n    return coalesce(new, old);\n  end if;\n"
+ },
+ {
+  "name": "marker left behind",
+  "find": "  delete from app.redacting where txid = txid_current();\n",
+  "replace": ""
+ },
+ {
+  "name": "redacted items not stamped",
+  "find": "         details = replace(details::text, j_text, j_repl)::jsonb, subtasks = replace(subtasks::text, j_text, j_repl)::jsonb,\n         edited_at = clock_timestamp()",
+  "replace": "         details = replace(details::text, j_text, j_repl)::jsonb, subtasks = replace(subtasks::text, j_text, j_repl)::jsonb"
+ },
+ {
+  "name": "item fields left",
+  "find": "         details = replace(details::text, j_text, j_repl)::jsonb, subtasks = replace(subtasks::text, j_text, j_repl)::jsonb,",
+  "replace": "         details = details, subtasks = subtasks,"
+ },
+ {
+  "name": "waiting on left",
+  "find": "         waiting_on = replace(waiting_on, p_text, p_replacement),",
+  "replace": "         waiting_on = waiting_on,"
+ },
+ {
+  "name": "sign-offs left",
+  "find": "  update public.signoffs set approver = replace(approver, p_text, p_replacement), approver_role = replace(approver_role, p_text, p_replacement),\n         note = replace(note, p_text, p_replacement)",
+  "replace": "  update public.signoffs set approver = approver, approver_role = approver_role,\n         note = note"
+ },
+ {
+  "name": "log left",
+  "find": "  update public.change_log set before = replace(before::text, j_text, j_repl)::jsonb, after = replace(after::text, j_text, j_repl)::jsonb",
+  "replace": "  update public.change_log set before = before, after = after"
+ },
+ {
+  "name": "every workspace redacted",
+  "find": "   where workspace_id = p_workspace\n     and (strpos(title, p_text) > 0",
+  "replace": "   where true\n     and (strpos(title, p_text) > 0"
+ },
+ {
+  "name": "short text allowed",
+  "find": "length(btrim(coalesce(p_text, ''))) < 3 or ",
+  "replace": ""
+ },
+ {
+  "name": "field names allowed",
+  "find": " or p_text ~ '^[a-z_]+$' then",
+  "replace": " then"
+ },
+ {
+  "name": "replacement keeps the text",
+  "find": "if coalesce(p_replacement, '') = '' or strpos(p_replacement, p_text) > 0 then",
+  "replace": "if coalesce(p_replacement, '') = '' then"
+ },
+ {
+  "name": "redaction not recorded",
+  "find": "  insert into public.change_log (workspace_id, table_name, row_key, action, actor_id, after)\n    values (p_workspace, 'redaction',",
+  "replace": "  perform (p_workspace, 'redaction',"
+ },
+ {
+  "name": "redact action refused",
+  "find": "check (action in ('insert', 'update', 'delete', 'baseline', 'redact'));",
+  "replace": "check (action in ('insert', 'update', 'delete', 'baseline'));"
+ },
+ {
+  "name": "what was removed recorded",
+  "find": "jsonb_build_object('rows', changed, 'log_entries', logged, 'reason', coalesce(p_reason, ''))",
+  "replace": "jsonb_build_object('rows', changed, 'log_entries', logged, 'reason', coalesce(p_reason, ''), 'text', p_text)"
+ }
+]

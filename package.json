@@ -14,6 +14,7 @@
     "backup": "node scripts/backup.mjs",
     "db:migrate": "node --import ./scripts/ts-register.mjs scripts/db-migrate.ts",
     "db:import": "node --import ./scripts/ts-register.mjs scripts/db-import.ts",
+    "db:redact": "node --import ./scripts/ts-register.mjs scripts/db-redact.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {

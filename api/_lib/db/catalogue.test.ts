@@ -12,6 +12,7 @@ import { readRows } from './rows';
 import { syncDocument } from './sync';
 import { NOW, documentWithCatalogue, task } from './testing/document';
 import { sortProjects } from '../../../src/lib/items';
+import { redactWorkspace } from './redact';
 
 const OWNER_URL = process.env.TEST_DB_OWNER_URL;
 const APP_URL = process.env.TEST_DB_APP_URL;
@@ -232,6 +233,27 @@ describe.skipIf(!OWNER_URL || !APP_URL)('products, partners and item types on Po
     const uat = await owner.query("select deleted_at is not null deleted from stages where owner_id = $1 and client_id = 'uat'", [userId]);
     expect(uat.rows).toEqual([{ deleted: true }]);
     expect(summariseDocument(reply, now)).toEqual(summariseDocument(rowsToDocument(await read(), 'default', now), now));
+  });
+
+  it("removes a person's name for good, and a device's older copy doesn't bring it back (retention)", async () => {
+    const dry = await redactWorkspace(owner, { email: `cat-${RUN}@example.org`, workspace: 'bank', text: 'Jane Okello', dryRun: true });
+    expect(dry).toMatchObject({ rows: 2, committed: false });
+    const stale = rowsToDocument(await read(), 'default', NOW + 9000); // a device's copy from before
+    expect(stale.workspaceData.bank.signoffs[0].approver).toBe('Jane Okello'); // the dry run changed nothing
+
+    const done = await redactWorkspace(owner, { email: `cat-${RUN}@example.org`, workspace: 'bank', text: 'Jane Okello', reason: 'test', dryRun: false });
+    expect(done).toMatchObject({ rows: 2, committed: true });
+    expect(done.logEntries).toBeGreaterThan(0);
+    const reply = await sync(stale, NOW + 9000);
+    expect(reply.workspaceData.bank.signoffs.map((s) => s.approver)).toEqual(['[removed]', '[removed]', 'Sam Kato', 'Sam Kato']);
+    expect(JSON.stringify(reply)).not.toContain('Jane Okello');
+    const left = await owner.query(
+      `select count(*)::int n from change_log where workspace_id in (select workspace_id from workspace_members where user_id = $1)
+         and (coalesce(before::text, '') || coalesce(after::text, '')) like '%Jane Okello%'`,
+      [userId],
+    );
+    expect(left.rows[0].n).toBe(0);
+    await expect(redactWorkspace(owner, { email: `cat-${RUN}@example.org`, workspace: 'nope', text: 'Jane Okello', dryRun: true })).rejects.toThrow(/no workspace/);
   });
 });
 

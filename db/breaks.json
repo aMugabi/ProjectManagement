@@ -180,31 +180,6 @@
   "replace": ""
  },
  {
-  "name": "no-op saves logged",
-  "find": "if tg_op = 'UPDATE' and (new_row - 'updated_at') = (old_row - 'updated_at') then",
-  "replace": "if false then"
- },
- {
-  "name": "write time counts as a change",
-  "find": "if tg_op = 'UPDATE' and (new_row - 'updated_at') = (old_row - 'updated_at') then",
-  "replace": "if tg_op = 'UPDATE' and new_row = old_row then"
- },
- {
-  "name": "no actor recorded",
-  "find": "lower(tg_op), app.user_id(), old_row, new_row);",
-  "replace": "lower(tg_op), null, old_row, new_row);"
- },
- {
-  "name": "no before recorded",
-  "find": "lower(tg_op), app.user_id(), old_row, new_row);",
-  "replace": "lower(tg_op), app.user_id(), null, new_row);"
- },
- {
-  "name": "row key from first column only",
-  "find": "from unnest(tg_argv[1:]) with ordinality",
-  "replace": "from unnest(tg_argv[1:2]) with ordinality"
- },
- {
   "name": "items filed under the wrong workspace",
   "find": "on items\n  for each row execute function app.log_change('workspace_id', 'id');",
   "replace": "on items\n  for each row execute function app.log_change('id', 'id');"

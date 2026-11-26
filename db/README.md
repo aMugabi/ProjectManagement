@@ -9,7 +9,8 @@ in Upstash Redis. The move is planned in the build plan (Step 1a), with a dry ru
   app role for a given user).
 - `breaks.json` (0001), `breaks-0002.json` (0002), `breaks-0003.json` (0003, Step 2: waiting on,
   chase date, snooze) and `breaks-0004.json` (0004, Step 3: stages, releases, append-only
-  sign-offs): one deliberate break per rule. Every one must
+  sign-offs) and `breaks-0005.json` (0005: the redaction, and the change-log trigger 0005 redefines,
+  whose five breaks moved there from `breaks.json`): one deliberate break per rule. Every one must
   make a test fail. Two 0001 rules are left out because 0002 replaces or shadows them: the task-only
   status check (dropped by 0002) and the known-type check (0002's status table refuses unknown
   types too).
@@ -82,3 +83,18 @@ fields).
    `create role ledger_app_login login password '<long random>' in role ledger_app;`
 3. Give the app only that role's connection string (`DATABASE_URL`); keep the owner's for
    migrations and the import.
+
+## Erasing a person's name (retention)
+Decided in Step 1b: items are kept (soft delete, never purged); change-log entries are archived
+after 3 years (not due before 2029); a person's name is erased with the owner-only
+`app.redact()` (migration 0005), which replaces it in one workspace's items, sign-offs, names and
+change-log entries, stamps the edited rows so devices' older copies don't bring it back, and
+records one `redact` entry (counts and a reason, never the text):
+
+```bash
+DATABASE_OWNER_URL=<owner> npm run db:redact -- --email you@example.org --workspace <workspace id> --reason "..." --dry-run
+DATABASE_OWNER_URL=<owner> npm run db:redact -- --email you@example.org --workspace <workspace id> --reason "..."
+```
+It asks for the name at a prompt (so it stays out of shell history). Backups taken before still
+hold the name: delete or re-take them.
+
