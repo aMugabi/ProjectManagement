@@ -41,7 +41,9 @@ describe.skipIf(!OWNER_URL || !APP_URL)('products, partners and item types on Po
     expect(result.after).toEqual(result.before);
     expect(result.rowCounts).toMatchObject({ workspaces: 4, products: 2, partners: 2, product_partners: 1, items: 11, item_links: 3, legacy_deletions: 4 });
     // 4 workspaces + 4 memberships + 3 projects + 2 products + 2 partners + 1 pair + 11 items + 3 links
-    expect(result.baselineEntries).toBe(30);
+    // + 2 stages + 1 release + 2 sign-offs
+    expect(result.baselineEntries).toBe(35);
+    expect(result.rowCounts).toMatchObject({ stages: 2, releases: 1, signoffs: 2 });
     const log = await owner.query(
       `select distinct action from change_log where workspace_id in (select workspace_id from workspace_members where user_id = $1)`,
       [userId],
@@ -176,4 +178,60 @@ describe.skipIf(!OWNER_URL || !APP_URL)('products, partners and item types on Po
     expect([back.waitingOn, back.chaseOn, back.snoozedUntil]).toEqual([undefined, undefined, undefined]);
     expect((await stored()).rows).toEqual([{ waiting_on: '', chase_on: null, snoozed_until: null }]);
   });
+
+  it('syncs a new release and its sign-offs, append-only, and refuses what the database would (Step 3)', async () => {
+    const now = NOW + 7000;
+    const upload = rowsToDocument(await read(), 'default', now);
+    const bank = upload.workspaceData.bank;
+    bank.stages.push({ id: 'pen', name: 'Pen test', order: 3, updatedAt: now });
+    bank.releases.push({ id: 'rel-2', product: 'loans', partner: 'telco', name: 'Loans v3', updatedAt: now });
+    const signoff = { release: 'rel-2', stage: 'pen', stageName: 'Pen test', approver: 'Sam Kato', role: 'CISO', signedAt: '2026-11-26T11:00', evidence: 'https://bank.example/pen', note: '' };
+    bank.signoffs.push(
+      { ...signoff, id: 'so-3', outcome: 'failed', updatedAt: now },
+      { ...signoff, id: 'so-4', outcome: 'passed', corrects: 'so-3', note: 'Retest misfiled', updatedAt: now + 1 },
+      { ...signoff, id: 'so-bad', outcome: 'passed', evidence: 'javascript:alert(1)', updatedAt: now + 2 },
+    );
+    bank.releases.push({ id: 'rel-bad', product: 'cards', partner: 'telco', name: 'Not a pair', updatedAt: now });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const reply = await sync(upload, now + 10);
+    warn.mockRestore();
+    const back = reply.workspaceData.bank;
+    expect(back.releases.map((r) => r.id)).toEqual(['rel-1', 'rel-2']);
+    expect(back.signoffs.map((s) => [s.id, s.corrects ?? ''])).toEqual([['so-1', ''], ['so-2', 'so-1'], ['so-3', ''], ['so-4', 'so-3']]);
+    const stored = await owner.query(
+      `select s.client_id, s.outcome, r.client_id release, st.client_id stage, c.client_id corrects, to_char(s.signed_at, 'YYYY-MM-DD HH24:MI') at
+         from signoffs s join releases r on r.id = s.release_id join stages st on st.id = s.stage_id left join signoffs c on c.id = s.corrects_id
+        where s.owner_id = $1 and s.client_id in ('so-3', 'so-4') order by 1`,
+      [userId],
+    );
+    expect(stored.rows).toEqual([
+      { client_id: 'so-3', outcome: 'failed', release: 'rel-2', stage: 'pen', corrects: null, at: '2026-11-26 11:00' },
+      { client_id: 'so-4', outcome: 'passed', release: 'rel-2', stage: 'pen', corrects: 'so-3', at: '2026-11-26 11:00' },
+    ]);
+
+    // A device's copy of a stored sign-off never changes it.
+    const again = rowsToDocument(await read(), 'default', now + 20);
+    again.workspaceData.bank.signoffs.find((s) => s.id === 'so-3')!.outcome = 'passed';
+    const second = await sync(again, now + 20);
+    expect(second.workspaceData.bank.signoffs.find((s) => s.id === 'so-3')!.outcome).toBe('failed');
+    const log = await owner.query("select count(*)::int n from change_log where actor_id = $1 and table_name = 'signoffs' and action = 'insert'", [userId]);
+    expect(log.rows[0].n).toBe(2);
+  });
+
+  it('renames and reorders stages, dates a release, and deletes an unused one (Step 3)', async () => {
+    const now = NOW + 8000;
+    const upload = rowsToDocument(await read(), 'default', now);
+    const bank = upload.workspaceData.bank;
+    Object.assign(bank.stages.find((s) => s.id === 'pen')!, { name: 'Penetration test', order: 0.5, updatedAt: now });
+    Object.assign(bank.releases.find((r) => r.id === 'rel-1')!, { targetDate: '2027-01-10', updatedAt: now });
+    bank.stages = bank.stages.filter((s) => s.id !== 'uat');
+    upload.deleted['stage:bank:uat'] = now;
+    const reply = await sync(upload, now);
+    expect(reply.workspaceData.bank.stages.map((s) => [s.id, s.name])).toEqual([['pen', 'Penetration test'], ['sit', 'SIT']]);
+    expect(reply.workspaceData.bank.releases[0].targetDate).toBe('2027-01-10');
+    const uat = await owner.query("select deleted_at is not null deleted from stages where owner_id = $1 and client_id = 'uat'", [userId]);
+    expect(uat.rows).toEqual([{ deleted: true }]);
+    expect(summariseDocument(reply, now)).toEqual(summariseDocument(rowsToDocument(await read(), 'default', now), now));
+  });
 });
+

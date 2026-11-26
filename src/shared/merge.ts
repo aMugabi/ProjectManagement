@@ -49,6 +49,10 @@ export function mergeStates(baseRaw: unknown, incomingRaw: unknown, activeWorksp
       partners: mergeItems(`partner:${w.id}`, b.partners, i.partners, deleted),
       // Pairs whose product or partner is gone are dropped by normalizeState below.
       pairs: mergeItems(`pair:${w.id}`, b.pairs, i.pairs, deleted),
+      stages: mergeItems(`stage:${w.id}`, b.stages, i.stages, deleted),
+      releases: mergeItems(`release:${w.id}`, b.releases, i.releases, deleted),
+      // Never deleted, never edited: every device's sign-offs are kept.
+      signoffs: mergeItems(`signoff:${w.id}`, b.signoffs, i.signoffs, {}),
     };
   }
 

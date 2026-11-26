@@ -7,8 +7,9 @@ in Upstash Redis. The move is planned in the build plan (Step 1a), with a dry ru
 - `tests/*_test.sql`: pgTAP tests, each in its own rolled-back transaction, sharing
   `tests/_fixture.sql` (two users, two workspaces, and `as_app()`, which runs one statement as the
   app role for a given user).
-- `breaks.json` (0001), `breaks-0002.json` (0002) and `breaks-0003.json` (0003, Step 2: waiting on,
-  chase date, snooze): one deliberate break per rule. Every one must
+- `breaks.json` (0001), `breaks-0002.json` (0002), `breaks-0003.json` (0003, Step 2: waiting on,
+  chase date, snooze) and `breaks-0004.json` (0004, Step 3: stages, releases, append-only
+  sign-offs): one deliberate break per rule. Every one must
   make a test fail. Two 0001 rules are left out because 0002 replaces or shadows them: the task-only
   status check (dropped by 0002) and the known-type check (0002's status table refuses unknown
   types too).
@@ -50,8 +51,9 @@ unshare --user --net --mount --map-current-user --keep-caps bash -c "ip link set
 touch "$SOCK/stop"
 ```
 Each run uses its own users, so runs can share one served database. `db/code-breaks.json` (the
-converter), `db/code-breaks-db.json` (reading, writing, the import) and `db/code-breaks-step2.json`
-(the Step 2 fields end to end) break the code on purpose;
+converter), `db/code-breaks-db.json` (reading, writing, the import), `db/code-breaks-step2.json`
+(the Step 2 fields end to end) and `db/code-breaks-step3.json` (releases and sign-offs) break the
+code on purpose;
 run them with the skill's `break-code.py` (the second inside the namespace above). Left out as
 shadowed: sync stripping `legacy_*` keys from uploads (each type's schema already refuses unknown
 fields).

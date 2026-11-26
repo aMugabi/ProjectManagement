@@ -4,7 +4,7 @@
  * dates as 'YYYY-MM-DD' text, so no time zone on either side can move a due date.
  */
 import type { Queryable } from './client.js';
-import type { GroupRow, ItemRow, LegacyDeletionRow, LinkRow, PairRow, Rows, SettingsRow, WorkspaceRow } from './mapping.js';
+import type { GroupRow, ItemRow, LegacyDeletionRow, LinkRow, PairRow, ReleaseRow, Rows, SettingsRow, SignOffRow, StageRow, WorkspaceRow } from './mapping.js';
 
 const ms = (column: string) => `round(extract(epoch from ${column}) * 1000)::float8`;
 const time = (field: string) => `to_timestamp(r.${field} / 1000.0)`;
@@ -42,6 +42,23 @@ export async function readRows(db: Queryable, userId: string): Promise<Rows> {
     [userId],
   );
   const links = await db.query<LinkRow>(`select workspace_id, owner_id, from_id, to_id, kind from item_links where workspace_id in (${MINE})`, [userId]);
+  const stages = await db.query<StageRow>(
+    `select id, workspace_id, owner_id, client_id, name, sort_order, ${ms('edited_at')} edited_ms, ${ms('deleted_at')} deleted_ms
+       from stages where workspace_id in (${MINE})`,
+    [userId],
+  );
+  const releases = await db.query<ReleaseRow>(
+    `select id, workspace_id, owner_id, client_id, product_id, partner_id, name, target_date::text target_date,
+            ${ms('edited_at')} edited_ms, ${ms('deleted_at')} deleted_ms
+       from releases where workspace_id in (${MINE})`,
+    [userId],
+  );
+  const signoffs = await db.query<SignOffRow>(
+    `select id, workspace_id, owner_id, client_id, release_id, stage_id, stage_name, outcome, approver, approver_role,
+            to_char(signed_at, 'YYYY-MM-DD"T"HH24:MI') signed_at, evidence_url, note, corrects_id, ${ms('created_at')} created_ms
+       from signoffs where workspace_id in (${MINE})`,
+    [userId],
+  );
   const legacyDeletions = await db.query<LegacyDeletionRow>(
     `select workspace_id, kind, client_id, ${ms('deleted_at')} deleted_ms from legacy_deletions where workspace_id in (${MINE})`,
     [userId],
@@ -55,6 +72,9 @@ export async function readRows(db: Queryable, userId: string): Promise<Rows> {
     pairs: pairs.rows,
     items: items.rows,
     links: links.rows,
+    stages: stages.rows,
+    releases: releases.rows,
+    signoffs: signoffs.rows,
     legacyDeletions: legacyDeletions.rows,
     settings: settings.rows[0] ?? null,
   };
@@ -109,6 +129,31 @@ export async function insertRows(db: Queryable, rows: Rows): Promise<void> {
     [json(rows.links)],
   );
   await db.query(
+    `insert into stages (id, workspace_id, owner_id, client_id, name, sort_order, edited_at, deleted_at)
+     select r.id, r.workspace_id, r.owner_id, r.client_id, r.name, r.sort_order, ${time('edited_ms')}, ${time('deleted_ms')}
+       from jsonb_to_recordset($1::jsonb)
+         as r(id uuid, workspace_id uuid, owner_id uuid, client_id text, name text, sort_order float8, edited_ms float8, deleted_ms float8)`,
+    [json(rows.stages)],
+  );
+  await db.query(
+    `insert into releases (id, workspace_id, owner_id, client_id, product_id, partner_id, name, target_date, edited_at, deleted_at)
+     select r.id, r.workspace_id, r.owner_id, r.client_id, r.product_id, r.partner_id, r.name, r.target_date, ${time('edited_ms')}, ${time('deleted_ms')}
+       from jsonb_to_recordset($1::jsonb)
+         as r(id uuid, workspace_id uuid, owner_id uuid, client_id text, product_id uuid, partner_id uuid, name text, target_date date,
+              edited_ms float8, deleted_ms float8)`,
+    [json(rows.releases)],
+  );
+  // In list order: a correction comes after the sign-off it names.
+  for (const so of rows.signoffs) {
+    await db.query(
+      `insert into signoffs (id, workspace_id, owner_id, client_id, release_id, stage_id, stage_name, outcome, approver, approver_role, signed_at,
+                             evidence_url, note, corrects_id, created_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, to_timestamp($15 / 1000.0))`,
+      [so.id, so.workspace_id, so.owner_id, so.client_id, so.release_id, so.stage_id, so.stage_name, so.outcome, so.approver, so.approver_role,
+        so.signed_at, so.evidence_url, so.note, so.corrects_id, so.created_ms],
+    );
+  }
+  await db.query(
     `insert into legacy_deletions (workspace_id, kind, client_id, deleted_at)
      select r.workspace_id, r.kind, r.client_id, ${time('deleted_ms')}
        from jsonb_to_recordset($1::jsonb) as r(workspace_id uuid, kind text, client_id text, deleted_ms float8)`,
@@ -124,7 +169,9 @@ export async function insertRows(db: Queryable, rows: Rows): Promise<void> {
 }
 
 /** The change-log triggers on workspace data, switched off during the import (which writes baselines instead). */
-export const LOGGED_TABLES = ['workspaces', 'workspace_members', 'projects', 'products', 'partners', 'product_partners', 'items', 'item_links'] as const;
+export const LOGGED_TABLES = [
+  'workspaces', 'workspace_members', 'projects', 'products', 'partners', 'product_partners', 'items', 'item_links', 'stages', 'releases', 'signoffs',
+] as const;
 
 /**
  * "History starts here": one 'baseline' entry per imported row, keyed as the triggers key them.
@@ -147,7 +194,13 @@ export async function writeBaseline(db: Queryable, workspaceIds: string[]): Prom
      union all
      select workspace_id, 'items', id::text, 'baseline', to_jsonb(t) from items t where workspace_id = any($1::uuid[])
      union all
-     select workspace_id, 'item_links', from_id || ':' || to_id || ':' || kind, 'baseline', to_jsonb(t) from item_links t where workspace_id = any($1::uuid[])`,
+     select workspace_id, 'item_links', from_id || ':' || to_id || ':' || kind, 'baseline', to_jsonb(t) from item_links t where workspace_id = any($1::uuid[])
+     union all
+     select workspace_id, 'stages', id::text, 'baseline', to_jsonb(t) from stages t where workspace_id = any($1::uuid[])
+     union all
+     select workspace_id, 'releases', id::text, 'baseline', to_jsonb(t) from releases t where workspace_id = any($1::uuid[])
+     union all
+     select workspace_id, 'signoffs', id::text, 'baseline', to_jsonb(t) from signoffs t where workspace_id = any($1::uuid[])`,
     [workspaceIds],
   );
   return result.rowCount ?? 0;

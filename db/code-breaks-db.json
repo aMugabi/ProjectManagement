@@ -79,8 +79,8 @@
  {
   "name": "items logged as inserts during import",
   "file": "api/_lib/db/rows.ts",
-  "find": "export const LOGGED_TABLES = ['workspaces', 'workspace_members', 'projects', 'products', 'partners', 'product_partners', 'items', 'item_links'] as const;",
-  "replace": "export const LOGGED_TABLES = ['workspaces', 'workspace_members', 'projects', 'products', 'partners', 'product_partners', 'item_links'] as const;",
+  "find": "  'workspaces', 'workspace_members', 'projects', 'products', 'partners', 'product_partners', 'items', 'item_links', 'stages', 'releases', 'signoffs',",
+  "replace": "  'workspaces', 'workspace_members', 'projects', 'products', 'partners', 'product_partners', 'item_links', 'stages', 'releases', 'signoffs',",
   "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {
@@ -317,8 +317,8 @@
  {
   "name": "1b rows: pairs logged as inserts during import",
   "file": "api/_lib/db/rows.ts",
-  "find": "export const LOGGED_TABLES = ['workspaces', 'workspace_members', 'projects', 'products', 'partners', 'product_partners', 'items', 'item_links'] as const;",
-  "replace": "export const LOGGED_TABLES = ['workspaces', 'workspace_members', 'projects', 'products', 'partners', 'items', 'item_links'] as const;",
+  "find": "  'workspaces', 'workspace_members', 'projects', 'products', 'partners', 'product_partners', 'items', 'item_links', 'stages', 'releases', 'signoffs',",
+  "replace": "  'workspaces', 'workspace_members', 'projects', 'products', 'partners', 'items', 'item_links', 'stages', 'releases', 'signoffs',",
   "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  }
 ]

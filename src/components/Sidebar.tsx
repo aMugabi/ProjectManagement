@@ -6,6 +6,7 @@ import { useFilters } from '../lib/useFilters';
 import { CLOUD_ENABLED } from '../lib/cloud';
 import { isDone } from '../shared/itemTypes';
 import { isWaiting } from '../shared/followUp';
+import { releasesOf } from '../lib/releases';
 import type { GroupKind } from '../store/taskStore';
 import s from './Sidebar.module.css';
 
@@ -275,6 +276,12 @@ function GroupSection({ kind, label }: { kind: GroupKind; label: string }) {
   }
 
   function handleDelete(id: string, name: string) {
+    // Releases and their sign-offs are records that must keep their product and partner.
+    const releases = kind === 'project' ? 0 : releasesOf(store, kind, id);
+    if (releases) {
+      window.alert(`"${name}" has ${releases} release${releases === 1 ? '' : 's'}, so it can't be deleted: their sign-offs are records that keep it.`);
+      return;
+    }
     const count = tasks.filter((t) => t[kind] === id).length;
     const items = `${count} item${count === 1 ? '' : 's'}`;
     const message =

@@ -83,12 +83,61 @@ export interface Workspace {
 }
 
 /** Data for a workspace that isn't currently active — the active workspace's data lives in the top-level tasks/projects fields. */
+/** A stage of the workspace's delivery template (Step 3): SIT, UAT, UVT, InfoSec, Go-live by default. */
+export interface Stage {
+  id: string;
+  name: string;
+  /** Position in the template (lowest first). */
+  order: number;
+  updatedAt: number;
+}
+
+/** A release of a product with a partner (their pair must exist). */
+export interface Release {
+  id: string;
+  product: string;
+  partner: string;
+  name: string;
+  /** ISO date the release should go live. */
+  targetDate?: string;
+  updatedAt: number;
+}
+
+export type SignOffOutcome = 'passed' | 'failed' | 'waived';
+
+/**
+ * One stage of one release signed off (Step 3). Never edited or deleted: a correction is a new
+ * sign-off naming the one it replaces in `corrects`.
+ */
+export interface SignOff {
+  id: string;
+  release: string;
+  stage: string;
+  /** The stage's name when signed, so the record reads the same after a rename. */
+  stageName: string;
+  outcome: SignOffOutcome;
+  approver: string;
+  /** The approver's role, e.g. 'Head of QA'. */
+  role: string;
+  /** The approver's local date and time, 'YYYY-MM-DDTHH:MM'. */
+  signedAt: string;
+  /** A link to the evidence in the bank's own systems ('' = none). No uploads. */
+  evidence: string;
+  note: string;
+  corrects?: string;
+  /** When it was recorded (ms). */
+  updatedAt: number;
+}
+
 export interface WorkspaceSnapshot {
   projects: Project[];
   tasks: Task[];
   products: Product[];
   partners: Partner[];
   pairs: ProductPartner[];
+  stages: Stage[];
+  releases: Release[];
+  signoffs: SignOff[];
 }
 
 export interface ReminderSettings {

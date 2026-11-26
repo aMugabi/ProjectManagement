@@ -1,0 +1,156 @@
+[
+ {
+  "name": "converter: release on a non-pair",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "if (!product || !partner || !pairIds.has(`${product}|${partner}`)) {",
+  "replace": "if (!product || !partner) {",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "converter: correction loses its target",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "corrects_id: corrects ?? null, created_ms: so.updatedAt,",
+  "replace": "corrects_id: null, created_ms: so.updatedAt,",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "converter: bad sign-off stored",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "const problem = signOffProblem(so) ?? (!release",
+  "replace": "const problem = (!release",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "converter: sign-offs read back newest first",
+  "file": "api/_lib/db/mapping.ts",
+  "find": ".sort((a, b) => a.created_ms - b.created_ms || a.client_id.localeCompare(b.client_id))",
+  "replace": ".sort((a, b) => b.created_ms - a.created_ms || a.client_id.localeCompare(b.client_id))",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "converter: deleted releases forgotten",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "    tombstones('release', releases);\n",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts api/_lib/db/catalogue.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "checksum ignores stage order",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "['S', workspace, st.id, st.name, st.order, st.updatedAt]",
+  "replace": "['S', workspace, st.id, st.name, st.updatedAt]",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "checksum ignores target date",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "r.name, r.targetDate ?? '', r.updatedAt].join('|');",
+  "replace": "r.name, r.updatedAt].join('|');",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "checksum ignores outcome",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "so.stageName, so.outcome, so.approver,",
+  "replace": "so.stageName, so.approver,",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "checksum ignores corrections",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "so.note, so.corrects ?? '', so.updatedAt]",
+  "replace": "so.note, so.updatedAt]",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "summary miscounts sign-offs",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "      signoffs: snap.signoffs.length,",
+  "replace": "      signoffs: snap.signoffs.filter((s) => !s.corrects).length,",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "rows: sign-off time read as a Date",
+  "file": "api/_lib/db/rows.ts",
+  "find": "to_char(signed_at, 'YYYY-MM-DD\"T\"HH24:MI') signed_at,",
+  "replace": "signed_at,",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts api/_lib/db/catalogue.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "rows: target date read as a Date",
+  "file": "api/_lib/db/rows.ts",
+  "find": "name, target_date::text target_date,",
+  "replace": "name, target_date,",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts api/_lib/db/catalogue.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "import logs sign-offs as inserts",
+  "file": "api/_lib/db/rows.ts",
+  "find": "'item_links', 'stages', 'releases', 'signoffs',",
+  "replace": "'item_links', 'stages', 'releases',",
+  "test": "npx vitest run api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "import: no baseline for releases",
+  "file": "api/_lib/db/rows.ts",
+  "find": "     union all\n     select workspace_id, 'releases', id::text, 'baseline', to_jsonb(t) from releases t where workspace_id = any($1::uuid[])\n",
+  "replace": "\n",
+  "test": "npx vitest run api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "sync: stored sign-offs written again",
+  "file": "api/_lib/db/sync.ts",
+  "find": "      if (signoffRows.has(so.id)) continue;\n",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "sync: correction loses its target",
+  "file": "api/_lib/db/sync.ts",
+  "find": "so.corrects ? stepIds.get(`signoffs:${workspace}:${so.corrects}`) : null, so.created_ms],",
+  "replace": "null, so.created_ms],",
+  "test": "npx vitest run api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "sync: release on a non-pair",
+  "file": "api/_lib/db/sync.ts",
+  "find": "          : !pairExists(`${r.product}+${r.partner}`)",
+  "replace": "          : false",
+  "test": "npx vitest run api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "sync: bad sign-off sent to the database",
+  "file": "api/_lib/db/sync.ts",
+  "find": "        signOffProblem(so) ??\n",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "sync: stage edits not written",
+  "file": "api/_lib/db/sync.ts",
+  "find": "        plan.stageUpdates.push({ id: row.id, name: st.name.trim(), sort_order: order, edited_ms: st.updatedAt });",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "sync: release date not written",
+  "file": "api/_lib/db/sync.ts",
+  "find": "update releases set name = $2, target_date = $3,",
+  "replace": "update releases set name = $2,",
+  "test": "npx vitest run api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "sync: stage deletion not stored",
+  "file": "api/_lib/db/sync.ts",
+  "find": "    dropped('stage', 'stages', new Set(snap.stages.map((st) => st.id)), stageRows);\n",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "sync: new stages not written",
+  "file": "api/_lib/db/sync.ts",
+  "find": "      else if (!row) plan.newStages.push(",
+  "replace": "      else if (!row && false) plan.newStages.push(",
+  "test": "npx vitest run api/_lib/db/catalogue.test.ts"
+ }
+]

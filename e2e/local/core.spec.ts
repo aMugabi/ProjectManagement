@@ -96,7 +96,7 @@ test.describe('local-only build: core task tracking', () => {
     await openTaskLink(page, 'a');
     await drawer(page).getByRole('button', { name: 'Low', exact: true }).click();
     const saved = await savedState(page);
-    expect(saved.version).toBe(4);
+    expect(saved.version).toBe(5);
     expect(saved.state.reminders.digestTime).toBe('08:00');
     expect(saved.state.projects[0].updatedAt).toBe(0);
     // Step 1b's lists arrive empty, so nothing that reads them finds them missing.
@@ -116,6 +116,9 @@ test.describe('local-only build: core task tracking', () => {
             products: [{ ...HOME, id: 'loans', name: 'Loans' }],
             partners: [{ ...HOME, id: 'telco', name: 'Telco' }],
             pairs: [{ id: 'loans+telco', product: 'loans', partner: 'telco', updatedAt: 1 }],
+            stages: [],
+            releases: [],
+            signoffs: [],
           },
         },
       }),

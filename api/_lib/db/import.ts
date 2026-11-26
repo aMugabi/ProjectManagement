@@ -83,6 +83,9 @@ export async function importDocument(
        union all select 'product_partners', count(*)::int from product_partners where owner_id = $1
        union all select 'items', count(*)::int from items where owner_id = $1
        union all select 'item_links', count(*)::int from item_links where owner_id = $1
+       union all select 'stages', count(*)::int from stages where owner_id = $1
+       union all select 'releases', count(*)::int from releases where owner_id = $1
+       union all select 'signoffs', count(*)::int from signoffs where owner_id = $1
        union all select 'legacy_deletions', count(*)::int from legacy_deletions where workspace_id in (select id from workspaces where owner_id = $1)`,
       [userId],
     );

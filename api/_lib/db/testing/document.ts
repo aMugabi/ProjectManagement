@@ -93,6 +93,17 @@ export function documentWithCatalogue(): SyncedState {
             task('cr1', '', { type: 'change_request', status: 'approved', details: { approver: 'Head of IT' } }),
             task('tb', '', { product: 'loans', title: 'Plain task on a product' }),
           ],
+          // Step 3: in the order the database gives them back (stages by order, releases by id,
+          // sign-offs by when they were recorded).
+          stages: [
+            { id: 'sit', name: 'SIT', order: 1, updatedAt: NOW - 3400 },
+            { id: 'uat', name: 'User testing', order: 2, updatedAt: NOW - 3300 },
+          ],
+          releases: [{ id: 'rel-1', product: 'loans', partner: 'telco', name: 'Loans v2', targetDate: '2026-12-15', updatedAt: NOW - 3200 }],
+          signoffs: [
+            { id: 'so-1', release: 'rel-1', stage: 'sit', stageName: 'SIT', outcome: 'failed', approver: 'Jane Okello', role: 'Head of QA', signedAt: '2026-11-20T09:30', evidence: 'https://bank.example/sit/1', note: '', updatedAt: NOW - 3100 },
+            { id: 'so-2', release: 'rel-1', stage: 'sit', stageName: 'SIT', outcome: 'passed', approver: 'Jane Okello', role: 'Head of QA', signedAt: '2026-11-20T09:30', evidence: '', note: 'Entered as failed by mistake', corrects: 'so-1', updatedAt: NOW - 3000 },
+          ],
         },
       },
       deleted: { ...doc.deleted, 'product:bank:old-product': NOW - 900, 'pair:bank:cards+fintech': NOW - 800 },

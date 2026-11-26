@@ -51,7 +51,7 @@ describe.skipIf(!OWNER_URL || !APP_URL)('the database (TEST_DB_OWNER_URL, TEST_D
     expect(result.committed).toBe(true);
     expect(result.after).toEqual(result.before);
     expect(result.before).toEqual(summariseDocument(document(), NOW));
-    expect(result.rowCounts).toEqual({ workspaces: 3, projects: 3, products: 0, partners: 0, product_partners: 0, items: 5, item_links: 2, legacy_deletions: 2 });
+    expect(result.rowCounts).toEqual({ workspaces: 3, projects: 3, products: 0, partners: 0, product_partners: 0, items: 5, item_links: 2, stages: 0, releases: 0, signoffs: 0, legacy_deletions: 2 });
     const who = await owner.query("select email, (select provider || ' ' || secret_hash from identities where user_id = users.id) identity from users where id = $1", [userId]);
     expect(who.rows[0]).toEqual({ email: ME, identity: 'password scrypt$00$11' });
   });
@@ -238,9 +238,9 @@ describe.skipIf(!OWNER_URL || !APP_URL)('the database (TEST_DB_OWNER_URL, TEST_D
     const fresh = new pg.Client({ connectionString: url.toString() });
     await fresh.connect();
     try {
-      expect(await migrate(fresh)).toEqual(['0001_foundation.sql', '0002_products_partners_types.sql', '0003_waiting_snooze.sql']);
+      expect(await migrate(fresh)).toEqual(['0001_foundation.sql', '0002_products_partners_types.sql', '0003_waiting_snooze.sql', '0004_releases_signoffs.sql']);
       expect(await migrate(fresh)).toEqual([]);
-      expect((await fresh.query("select count(*)::int n from pg_tables where schemaname = 'public'")).rows[0].n).toBe(21);
+      expect((await fresh.query("select count(*)::int n from pg_tables where schemaname = 'public'")).rows[0].n).toBe(24);
     } finally {
       await fresh.end();
       await owner.query(`drop database ${name}`);

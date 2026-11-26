@@ -84,7 +84,7 @@ describe('computeReminders', () => {
         { id: 'default', name: 'Home', updatedAt: 1 },
         { id: 'work', name: 'Work', updatedAt: 1 },
       ],
-      workspaceData: { work: { projects: [], tasks: [task('w', '2026-11-04')], products: [], partners: [], pairs: [] } },
+      workspaceData: { work: { projects: [], tasks: [task('w', '2026-11-04')], products: [], partners: [], pairs: [], stages: [], releases: [], signoffs: [] } },
     });
     const [r] = computeReminders(s, { date: TODAY, minutes: 600 });
     expect(r).toMatchObject({ key: 'digest:2026-11-03', body: 'Coming up: w (tomorrow)' });

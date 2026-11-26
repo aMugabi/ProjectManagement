@@ -1,11 +1,12 @@
 /** The synced data shape, shared by the app's store and the /api functions. Pure — no DOM, no React. */
-import type { Partner, Product, ProductPartner, Project, ReminderSettings, Task, Workspace, WorkspaceSnapshot } from '../types.js';
+import type { Partner, Product, ProductPartner, Project, Release, ReminderSettings, SignOff, Stage, Task, Workspace, WorkspaceSnapshot } from '../types.js';
 
 /**
  * Persisted store version. 3 adds updatedAt stamps, deletion tombstones and reminder settings;
- * 4 adds products, partners and their pairs (build plan Step 1b), so older saved data is upgraded.
+ * 4 adds products, partners and their pairs (build plan Step 1b); 5 adds stages, releases and
+ * sign-offs (Step 3). Older saved data is upgraded.
  */
-export const STATE_VERSION = 4;
+export const STATE_VERSION = 5;
 
 /** Tombstones older than this are dropped; a device offline longer than this could resurrect a deleted item. */
 export const TOMBSTONE_TTL_MS = 60 * 24 * 60 * 60 * 1000;
@@ -17,7 +18,8 @@ export interface SyncedState extends WorkspaceSnapshot {
   workspaceData: Record<string, WorkspaceSnapshot>;
   /**
    * Deletion tombstones → deletion time (ms): 'task:<workspaceId>:<id>' (any item),
-   * 'project:…', 'product:…', 'partner:…', 'pair:<workspaceId>:<product>+<partner>', 'workspace:<id>'.
+   * 'project:…', 'product:…', 'partner:…', 'pair:<workspaceId>:<product>+<partner>', 'stage:…',
+   * 'release:…', 'workspace:<id>'. Sign-offs are never deleted.
    */
   deleted: Record<string, number>;
   reminders: ReminderSettings;
@@ -25,12 +27,21 @@ export interface SyncedState extends WorkspaceSnapshot {
 
 /** A workspace with nothing in it yet. */
 export function emptySnapshot(): WorkspaceSnapshot {
-  return { projects: [], tasks: [], products: [], partners: [], pairs: [] };
+  return { projects: [], tasks: [], products: [], partners: [], pairs: [], stages: [], releases: [], signoffs: [] };
 }
 
 /** The active workspace's data, from the top level of the state. */
 export function activeSnapshot(s: WorkspaceSnapshot): WorkspaceSnapshot {
-  return { projects: s.projects, tasks: s.tasks, products: s.products, partners: s.partners, pairs: s.pairs };
+  return {
+    projects: s.projects,
+    tasks: s.tasks,
+    products: s.products,
+    partners: s.partners,
+    pairs: s.pairs,
+    stages: s.stages,
+    releases: s.releases,
+    signoffs: s.signoffs,
+  };
 }
 
 export const pairId = (product: string, partner: string) => `${product}+${partner}`;
@@ -95,6 +106,10 @@ function snapshot(raw: unknown): WorkspaceSnapshot {
     products,
     partners,
     pairs,
+    // Releases and sign-offs are records: kept even if what they name has gone.
+    stages: stamped(asArray<Stage>(s.stages)),
+    releases: stamped(asArray<Release>(s.releases)),
+    signoffs: stamped(asArray<SignOff>(s.signoffs)),
   };
 }
 

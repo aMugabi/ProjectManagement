@@ -10,6 +10,7 @@ import { STORE_KEY } from '../lib/deviceData';
 import { wouldCreateCycle } from '../lib/selectors';
 import { parseHome, sortProjects, uniqueId, withDate, withDetail, withWaiting, withHome, withoutGroup, withType, type HomeValue, type ProjectTarget } from '../lib/items';
 import { completeStatus, firstStatus, isDone, statusForPhase, typeOf, type Phase } from '../shared/itemTypes';
+import * as rel from '../lib/releases';
 
 const PROJECT_COLORS = [
   '#b4674a',
@@ -70,6 +71,18 @@ interface TaskStore extends SyncedState {
   renameGroup: (kind: GroupKind, id: string, name: string) => void;
   /** A project goes with its tasks; a product or partner goes with its pairs, and its items stay. */
   deleteGroup: (kind: GroupKind, id: string) => void;
+  /** Step 3: a release of a product with a partner (their pair and the stage template made if needed); returns its id. */
+  addRelease: (input: { product: string; partner: string; name: string; targetDate?: string }) => string;
+  updateRelease: (id: string, patch: { name?: string; targetDate?: string }) => void;
+  /** False, and nothing changes, if the release has sign-offs. */
+  deleteRelease: (id: string) => boolean;
+  addStage: (name: string) => void;
+  renameStage: (id: string, name: string) => void;
+  moveStage: (id: string, direction: -1 | 1) => void;
+  /** False, and nothing changes, if a sign-off names the stage. */
+  deleteStage: (id: string) => boolean;
+  /** Records a sign-off (or a correction); returns why it couldn't, or null. */
+  signOff: (input: rel.SignOffInput) => string | null;
   /** Turns projects of the active workspace into products, partners or pairs (the sorting tool). */
   sortProjects: (choices: Record<string, ProjectTarget>) => void;
   /** Moves an item to a plain project, a product, a partner, a pair (made if new) or nothing. */
@@ -110,6 +123,9 @@ export const useTaskStore = create<TaskStore>()(
       products: [],
       partners: [],
       pairs: [],
+      stages: [],
+      releases: [],
+      signoffs: [],
       workspaces: [DEFAULT_WORKSPACE],
       activeWorkspaceId: DEFAULT_WORKSPACE.id,
       workspaceData: {},
@@ -233,10 +249,46 @@ export const useTaskStore = create<TaskStore>()(
 
       deleteGroup: (kind, id) => {
         if (kind === 'project') return get().deleteProject(id);
+        if (rel.releasesOf(get(), kind, id)) return; // its releases' sign-offs keep it
         set((s) => {
           const { snap, deleted } = withoutGroup(activeSnapshot(s), kind, id, s.activeWorkspaceId, Date.now());
           return { ...snap, deleted: { ...s.deleted, ...deleted } };
         });
+      },
+
+      addRelease: (input) => {
+        const { snap, id } = rel.addRelease(activeSnapshot(get()), input, Date.now());
+        set(snap);
+        return id;
+      },
+
+      updateRelease: (id, patch) => set((s) => rel.updateRelease(activeSnapshot(s), id, patch, Date.now())),
+
+      deleteRelease: (id) => {
+        const s = get();
+        const done = rel.deleteRelease(activeSnapshot(s), id, s.activeWorkspaceId, Date.now());
+        if (done) set({ ...done.snap, deleted: { ...s.deleted, ...done.deleted } });
+        return Boolean(done);
+      },
+
+      addStage: (name) => set((s) => rel.addStage(activeSnapshot(s), name, Date.now())),
+
+      renameStage: (id, name) => set((s) => rel.renameStage(activeSnapshot(s), id, name, Date.now())),
+
+      moveStage: (id, direction) => set((s) => rel.moveStage(activeSnapshot(s), id, direction, Date.now())),
+
+      deleteStage: (id) => {
+        const s = get();
+        const done = rel.deleteStage(activeSnapshot(s), id, s.activeWorkspaceId, Date.now());
+        if (done) set({ ...done.snap, deleted: { ...s.deleted, ...done.deleted } });
+        return Boolean(done);
+      },
+
+      signOff: (input) => {
+        const done = rel.addSignOff(activeSnapshot(get()), input, Date.now());
+        if ('problem' in done) return done.problem;
+        set(done.snap);
+        return null;
       },
 
       sortProjects: (choices) =>

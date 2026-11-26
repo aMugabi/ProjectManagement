@@ -10,11 +10,12 @@
  */
 import type { Project, Task } from '../../../src/types.js';
 import { itemProblem } from '../../../src/shared/itemSchemas.js';
+import { signOffProblem } from '../../../src/shared/delivery.js';
 import { typeOf } from '../../../src/shared/itemTypes.js';
 import { mergeStates } from '../../../src/shared/merge.js';
 import { allWorkspaceData, emptySnapshot, normalizeState, ownEntry, type SyncedState } from '../../../src/shared/state.js';
 import type { Queryable } from './client.js';
-import { pairKey, partnerKey, productKey, projectKey, remindersKey, rowsToDocument, taskKey, workspaceKey, type GroupRow, type Rows } from './mapping.js';
+import { pairKey, partnerKey, productKey, projectKey, releaseKey, remindersKey, rowsToDocument, stageKey, taskKey, workspaceKey, type GroupRow, type Rows } from './mapping.js';
 import { readRows } from './rows.js';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -37,10 +38,19 @@ export interface SyncPlan {
   itemUpdates: (TaskFields & { id: string; workspace: string })[];
   /** For each new or changed item: the full list of items it now depends on (client ids, same workspace). */
   dependencies: { workspace: string; item: string; dependsOn: string[] }[];
-  deletions: { table: 'workspaces' | GroupTable | 'product_partners' | 'items'; id: string; deleted_ms: number }[];
+  /** Step 3: the stage template, releases and sign-offs (sign-offs are only ever added). */
+  newStages: { workspace: string; client_id: string; name: string; sort_order: number; edited_ms: number }[];
+  stageUpdates: { id: string; name: string; sort_order: number; edited_ms: number }[];
+  newReleases: { workspace: string; client_id: string; product: string; partner: string; name: string; target_date: string | null; edited_ms: number }[];
+  releaseUpdates: { id: string; name: string; target_date: string | null; edited_ms: number }[];
+  newSignoffs: {
+    workspace: string; client_id: string; release: string; stage: string; stage_name: string; outcome: string; approver: string; approver_role: string;
+    signed_at: string; evidence_url: string; note: string; corrects: string | null; created_ms: number;
+  }[];
+  deletions: { table: 'workspaces' | GroupTable | 'product_partners' | 'items' | 'stages' | 'releases'; id: string; deleted_ms: number }[];
   /** Uploaded copies refused because the database holds a newer deletion: tombstone keys for the reply. */
   refused: string[];
-  /** Uploaded items not stored because they fail their type's checks (src/shared/itemSchemas.ts). */
+  /** Uploaded items, releases and sign-offs not stored because they fail their checks. */
   invalid: { key: string; problem: string }[];
   settings: { reminders: Omit<SyncedState['reminders'], 'updatedAt'>; edited_ms: number } | null;
 }
@@ -78,7 +88,8 @@ function taskFields(t: Task) {
 export function planSync(rows: Rows, merged: SyncedState, now = Date.now()): SyncPlan {
   const plan: SyncPlan = {
     newWorkspaces: [], workspaceUpdates: [], newGroups: [], groupUpdates: [], newPairs: [], pairUpdates: [], newItems: [], itemUpdates: [],
-    dependencies: [], deletions: [], refused: [], invalid: [], settings: null,
+    dependencies: [], newStages: [], stageUpdates: [], newReleases: [], releaseUpdates: [], newSignoffs: [], deletions: [], refused: [], invalid: [],
+    settings: null,
   };
   const current = rowsToDocument(rows, merged.activeWorkspaceId, now);
   const currentData = allWorkspaceData(current);
@@ -171,6 +182,77 @@ export function planSync(rows: Rows, merged: SyncedState, now = Date.now()): Syn
       }
     }
     dropped('task', 'items', new Set(snap.tasks.map((t) => t.id)), itemRows);
+
+    // Step 3. A stage or release: written when new or changed, like a project.
+    const stageRows = inWs(rows.stages);
+    const currentStages = new Map(before.stages.map((st) => [st.id, st]));
+    for (const st of snap.stages) {
+      const row = stageRows.get(st.id);
+      const at = deletedAt('stage', st.id, row);
+      const order = Number.isFinite(st.order) ? st.order : 0;
+      if (at !== null && st.updatedAt <= at) plan.refused.push(`stage:${w.id}:${st.id}`);
+      else if (!st.name.trim()) plan.invalid.push({ key: `stage:${w.id}:${st.id}`, problem: 'a stage needs a name' });
+      else if (!row) plan.newStages.push({ workspace: w.id, client_id: st.id, name: st.name.trim(), sort_order: order, edited_ms: st.updatedAt });
+      else if (row.deleted_ms !== null || stageKey(w.id, st) !== stageKey(w.id, currentStages.get(st.id)!)) {
+        plan.stageUpdates.push({ id: row.id, name: st.name.trim(), sort_order: order, edited_ms: st.updatedAt });
+      }
+    }
+    dropped('stage', 'stages', new Set(snap.stages.map((st) => st.id)), stageRows);
+
+    const releaseRows = inWs(rows.releases);
+    const currentReleases = new Map(before.releases.map((r) => [r.id, r]));
+    const pairExists = (id: string) => pairRows.has(id) || plan.newPairs.some((p) => p.workspace === w.id && p.client_id === id);
+    for (const r of snap.releases) {
+      const row = releaseRows.get(r.id);
+      const at = deletedAt('release', r.id, row);
+      const key = `release:${w.id}:${r.id}`;
+      const current = currentReleases.get(r.id);
+      const target_date = r.targetDate && ISO_DATE.test(r.targetDate) ? r.targetDate : null;
+      const problem = !r.name.trim()
+        ? 'a release needs a name'
+        : r.targetDate && !target_date
+          ? `target date ${JSON.stringify(r.targetDate)} isn't YYYY-MM-DD`
+          : !pairExists(`${r.product}+${r.partner}`)
+            ? `${r.product} and ${r.partner} aren't a pair`
+            : current && (current.product !== r.product || current.partner !== r.partner)
+              ? "a release can't move to another product or partner"
+              : null;
+      if (at !== null && r.updatedAt <= at) plan.refused.push(key);
+      else if (!row && problem) plan.invalid.push({ key, problem });
+      else if (!row) plan.newReleases.push({ workspace: w.id, client_id: r.id, product: r.product, partner: r.partner, name: r.name.trim(), target_date, edited_ms: r.updatedAt });
+      else if (row.deleted_ms !== null || releaseKey(w.id, r) !== releaseKey(w.id, current!)) {
+        if (problem) plan.invalid.push({ key, problem });
+        else plan.releaseUpdates.push({ id: row.id, name: r.name.trim(), target_date, edited_ms: r.updatedAt });
+      }
+    }
+    dropped('release', 'releases', new Set(snap.releases.map((r) => r.id)), releaseRows);
+
+    // A sign-off is written once and never changed; one the database holds is left as it is.
+    const signoffRows = inWs(rows.signoffs);
+    const stageKnown = (id: string) => stageRows.has(id) || plan.newStages.some((st) => st.workspace === w.id && st.client_id === id);
+    const releaseKnown = (id: string) => releaseRows.has(id) || plan.newReleases.some((r) => r.workspace === w.id && r.client_id === id);
+    const signoffKnown = (id: string) => signoffRows.has(id) || plan.newSignoffs.some((so) => so.workspace === w.id && so.client_id === id);
+    for (const so of snap.signoffs) {
+      if (signoffRows.has(so.id)) continue;
+      const problem =
+        signOffProblem(so) ??
+        (!releaseKnown(so.release)
+          ? 'its release is missing'
+          : !stageKnown(so.stage)
+            ? 'its stage is missing'
+            : so.corrects && !signoffKnown(so.corrects)
+              ? 'the sign-off it corrects is missing'
+              : null);
+      if (problem) {
+        plan.invalid.push({ key: `signoff:${w.id}:${so.id}`, problem });
+        continue;
+      }
+      plan.newSignoffs.push({
+        workspace: w.id, client_id: so.id, release: so.release, stage: so.stage, stage_name: so.stageName, outcome: so.outcome, approver: so.approver,
+        approver_role: so.role ?? '', signed_at: so.signedAt, evidence_url: so.evidence ?? '', note: so.note ?? '', corrects: so.corrects ?? null,
+        created_ms: so.updatedAt,
+      });
+    }
   }
 
   if (remindersKey(merged.reminders) !== remindersKey(current.reminders)) {
@@ -301,6 +383,47 @@ async function applyPlan(db: Queryable, userId: string, rows: Rows, plan: SyncPl
     for (const to of wanted) {
       if (!have.has(to)) await db.query('insert into item_links (workspace_id, owner_id, from_id, to_id) values ($1, $2, $3, $4)', [workspace, userId, from, to]);
     }
+  }
+
+  // Step 3: stages and releases (on pairs, which exist by now), then sign-offs in order.
+  const stepIds = new Map<string, string>();
+  for (const [table, list] of [['stages', rows.stages], ['releases', rows.releases], ['signoffs', rows.signoffs]] as const) {
+    for (const r of list) stepIds.set(`${table}:${r.workspace_id}:${r.client_id}`, r.id);
+  }
+  for (const st of plan.newStages) {
+    const workspace = wsId.get(st.workspace)!;
+    const made = await db.query<{ id: string }>(
+      `insert into stages (workspace_id, owner_id, client_id, name, sort_order, edited_at) values ($1, $2, $3, $4, $5, ${time('$6')}) returning id`,
+      [workspace, userId, st.client_id, st.name, st.sort_order, st.edited_ms],
+    );
+    stepIds.set(`stages:${workspace}:${st.client_id}`, made.rows[0].id);
+  }
+  for (const st of plan.stageUpdates) {
+    await db.query(`update stages set name = $2, sort_order = $3, edited_at = ${time('$4')}, deleted_at = null where id = $1`, [st.id, st.name, st.sort_order, st.edited_ms]);
+  }
+  for (const r of plan.newReleases) {
+    const workspace = wsId.get(r.workspace)!;
+    const made = await db.query<{ id: string }>(
+      `insert into releases (workspace_id, owner_id, client_id, product_id, partner_id, name, target_date, edited_at)
+       values ($1, $2, $3, $4, $5, $6, $7, ${time('$8')}) returning id`,
+      [workspace, userId, r.client_id, groupIds.get(`products:${workspace}:${r.product}`), groupIds.get(`partners:${workspace}:${r.partner}`), r.name, r.target_date, r.edited_ms],
+    );
+    stepIds.set(`releases:${workspace}:${r.client_id}`, made.rows[0].id);
+  }
+  for (const r of plan.releaseUpdates) {
+    await db.query(`update releases set name = $2, target_date = $3, edited_at = ${time('$4')}, deleted_at = null where id = $1`, [r.id, r.name, r.target_date, r.edited_ms]);
+  }
+  for (const so of plan.newSignoffs) {
+    const workspace = wsId.get(so.workspace)!;
+    const made = await db.query<{ id: string }>(
+      `insert into signoffs (workspace_id, owner_id, client_id, release_id, stage_id, stage_name, outcome, approver, approver_role, signed_at, evidence_url,
+                             note, corrects_id, created_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, ${time('$14')}) returning id`,
+      [workspace, userId, so.client_id, stepIds.get(`releases:${workspace}:${so.release}`), stepIds.get(`stages:${workspace}:${so.stage}`), so.stage_name,
+        so.outcome, so.approver, so.approver_role, so.signed_at, so.evidence_url, so.note,
+        so.corrects ? stepIds.get(`signoffs:${workspace}:${so.corrects}`) : null, so.created_ms],
+    );
+    stepIds.set(`signoffs:${workspace}:${so.client_id}`, made.rows[0].id);
   }
 
   for (const d of plan.deletions) {

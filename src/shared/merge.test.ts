@@ -76,14 +76,14 @@ describe('mergeStates', () => {
     const local = state([task('h1', 1)], {
       workspaces,
       activeWorkspaceId: 'default',
-      workspaceData: { work: { projects: [], tasks: [task('w1', 1)], products: [], partners: [], pairs: [] } },
+      workspaceData: { work: { projects: [], tasks: [task('w1', 1)], products: [], partners: [], pairs: [], stages: [], releases: [], signoffs: [] } },
     });
     const remote = normalizeState({
       workspaces,
       activeWorkspaceId: 'work',
       tasks: [task('w1', 1), task('w2', 2)],
       projects: [],
-      workspaceData: { default: { projects: [project], tasks: [task('h1', 1), task('h2', 2)], products: [], partners: [], pairs: [] } },
+      workspaceData: { default: { projects: [project], tasks: [task('h1', 1), task('h2', 2)], products: [], partners: [], pairs: [], stages: [], releases: [], signoffs: [] } },
     });
     const merged = mergeStates(local, remote, 'default');
     expect(merged.activeWorkspaceId).toBe('default');
@@ -99,7 +99,7 @@ describe('mergeStates', () => {
     ];
     const s = state([], {
       workspaces,
-      workspaceData: { work: { projects: [project], tasks: [], products: [], partners: [], pairs: [] } },
+      workspaceData: { work: { projects: [project], tasks: [], products: [], partners: [], pairs: [], stages: [], releases: [], signoffs: [] } },
       deleted: { 'project:default:p': T },
     });
     const merged = mergeStates(s, s, 'default');
@@ -112,7 +112,7 @@ describe('mergeStates', () => {
       { id: 'default', name: 'Home', updatedAt: 1 },
       { id: 'constructor', name: 'Constructor', updatedAt: 2 },
     ];
-    const local = state([task('h', 1)], { workspaces, workspaceData: { constructor: { projects: [], tasks: [task('c', 1)], products: [], partners: [], pairs: [] } } });
+    const local = state([task('h', 1)], { workspaces, workspaceData: { constructor: { projects: [], tasks: [task('c', 1)], products: [], partners: [], pairs: [], stages: [], releases: [], signoffs: [] } } });
     const remote = state([task('h', 1)]); // the cloud hasn't seen the new workspace yet
     const merged = mergeStates(local, remote, 'default');
     expect(ownEntry(merged.workspaceData, 'constructor')?.tasks.map((t) => t.id)).toEqual(['c']);

@@ -116,9 +116,9 @@ describe('documentToRows / rowsToDocument', () => {
 describe('summariseDocument', () => {
   it('counts each workspace', () => {
     expect(summariseDocument(document()).workspaces).toEqual([
-      { workspace: 'default', projects: 2, products: 0, partners: 0, pairs: 0, tasks: 3, done: 1, dependencies: 1, deletions: 1 },
-      { workspace: 'work', projects: 1, products: 0, partners: 0, pairs: 0, tasks: 2, done: 0, dependencies: 1, deletions: 1 },
-      { workspace: 'constructor', projects: 0, products: 0, partners: 0, pairs: 0, tasks: 0, done: 0, dependencies: 0, deletions: 0 },
+      { workspace: 'default', projects: 2, products: 0, partners: 0, pairs: 0, tasks: 3, done: 1, dependencies: 1, stages: 0, releases: 0, signoffs: 0, deletions: 1 },
+      { workspace: 'work', projects: 1, products: 0, partners: 0, pairs: 0, tasks: 2, done: 0, dependencies: 1, stages: 0, releases: 0, signoffs: 0, deletions: 1 },
+      { workspace: 'constructor', projects: 0, products: 0, partners: 0, pairs: 0, tasks: 0, done: 0, dependencies: 0, stages: 0, releases: 0, signoffs: 0, deletions: 0 },
     ]);
   });
 
@@ -226,7 +226,7 @@ describe('products, partners, pairs and item types (Step 1b)', () => {
 
   it('counts them, with each type\'s own finished statuses', () => {
     const bank = summariseDocument(documentWithCatalogue()).workspaces.find((w) => w.workspace === 'bank')!;
-    expect(bank).toEqual({ workspace: 'bank', projects: 0, products: 2, partners: 2, pairs: 1, tasks: 6, done: 1, dependencies: 1, deletions: 2 });
+    expect(bank).toEqual({ workspace: 'bank', projects: 0, products: 2, partners: 2, pairs: 1, tasks: 6, done: 1, dependencies: 1, stages: 2, releases: 1, signoffs: 2, deletions: 2 });
   });
 
   it('notices any change to them in the checksum', () => {
@@ -239,6 +239,11 @@ describe('products, partners, pairs and item types (Step 1b)', () => {
       (d) => (d.workspaceData.bank.products[0].name = 'Loans'),
       (d) => (d.workspaceData.bank.partners[1].color = '#000000'),
       (d) => (d.workspaceData.bank.pairs[0].updatedAt += 1),
+      (d) => (d.workspaceData.bank.stages[1].order = 3),
+      (d) => (d.workspaceData.bank.releases[0].targetDate = undefined),
+      (d) => (d.workspaceData.bank.signoffs[0].outcome = 'waived'),
+      (d) => (d.workspaceData.bank.signoffs[1].corrects = undefined),
+      (d) => (d.workspaceData.bank.signoffs[1].evidence = 'https://bank.example/other'),
     ];
     for (const change of changes) {
       const d = documentWithCatalogue();
@@ -250,3 +255,55 @@ describe('products, partners, pairs and item types (Step 1b)', () => {
     expect(summariseDocument(reordered).checksum).toBe(base); // key order doesn't matter
   });
 });
+
+describe('stages, releases and sign-offs (Step 3)', () => {
+  it('come back exactly, a correction pointing at the sign-off it replaces', () => {
+    const { rows, notes } = documentToRows(documentWithCatalogue(), OWNER, ids());
+    expect(notes).toEqual([]);
+    expect(rows.stages.map((r) => [r.client_id, r.name, r.sort_order])).toEqual([['sit', 'SIT', 1], ['uat', 'User testing', 2]]);
+    const [first, fix] = rows.signoffs;
+    expect([fix.client_id, fix.corrects_id]).toEqual(['so-2', first.id]);
+    expect(rows.releases[0]).toMatchObject({ client_id: 'rel-1', name: 'Loans v2', target_date: '2026-12-15' });
+    expect(rows.releases[0].product_id).toBe(rows.products.find((p) => p.client_id === 'loans')!.id);
+    expect(rowsToDocument(rows, 'default', NOW)).toEqual(documentWithCatalogue());
+  });
+
+  it("leaves out, with a note, what the database can't hold: so the import stops", () => {
+    const doc = documentWithCatalogue();
+    const bank = doc.workspaceData.bank;
+    bank.releases.push({ id: 'rel-x', product: 'cards', partner: 'telco', name: 'Not a pair', updatedAt: NOW });
+    bank.signoffs.push(
+      { ...bank.signoffs[0], id: 'so-x', release: 'rel-gone', updatedAt: NOW },
+      { ...bank.signoffs[0], id: 'so-y', stage: 'gone', updatedAt: NOW + 1 },
+      { ...bank.signoffs[0], id: 'so-z', corrects: 'so-gone', updatedAt: NOW + 2 },
+      { ...bank.signoffs[0], id: 'so-w', evidence: 'file:///c:/x.pdf', updatedAt: NOW + 3 },
+    );
+    const { rows, notes } = documentToRows(doc, OWNER, ids());
+    expect(notes.map((n) => `${n.where}: ${n.note}`)).toEqual([
+      "bank/release rel-x: cards and telco aren't a pair here; the release can't be stored",
+      "bank/sign-off so-x: its release is missing; it can't be stored",
+      "bank/sign-off so-y: its stage is missing; it can't be stored",
+      "bank/sign-off so-z: the sign-off it corrects is missing; it can't be stored",
+      "bank/sign-off so-w: the evidence is not a web link (http:// or https://); it can't be stored",
+    ]);
+    expect(summariseDocument(rowsToDocument(rows, 'default', NOW)).checksum).not.toBe(summariseDocument(doc).checksum);
+  });
+
+  it('remembers deleted stages and releases like other deletions', () => {
+    const doc = documentWithCatalogue();
+    doc.deleted['stage:bank:old-stage'] = NOW - 500;
+    doc.deleted['release:bank:old-release'] = NOW - 400;
+    // A release deleted after its last edit: stored as a deleted row, and given back as a deletion.
+    doc.workspaceData.bank.releases.push({ id: 'rel-gone', product: 'loans', partner: 'telco', name: 'Dropped', updatedAt: NOW - 300 });
+    doc.deleted['release:bank:rel-gone'] = NOW - 200;
+    const { rows } = documentToRows(doc, OWNER, ids());
+    expect(rows.releases.find((r) => r.client_id === 'rel-gone')?.deleted_ms).toBe(NOW - 200);
+    expect(rowsToDocument(rows, 'default', NOW).deleted['release:bank:rel-gone']).toBe(NOW - 200);
+    expect(rows.legacyDeletions.filter((d) => d.kind === 'stage' || d.kind === 'release').map((d) => [d.kind, d.client_id])).toEqual([
+      ['stage', 'old-stage'],
+      ['release', 'old-release'],
+    ]);
+    expect(summariseDocument(rowsToDocument(rows, 'default', NOW))).toEqual(summariseDocument(doc));
+  });
+});
+

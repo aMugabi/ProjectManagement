@@ -6,11 +6,14 @@
  * Times are milliseconds here (the document's updatedAt and tombstone stamps) and timestamptz in
  * the database; the SQL layer converts at the boundary, exactly to the millisecond. Anything the
  * database can't hold exactly (a missing project, a date that isn't a date) is kept in the item's
- * details under a `legacy_` key, so the document comes back unchanged.
+ * details under a `legacy_` key, so the document comes back unchanged. Releases and sign-offs
+ * (Step 3) are records with nowhere to keep such notes: one that can't be stored exactly is left
+ * out with a note, so the before/after check fails and the import stops.
  */
-import type { ItemType, Priority, Project, ProductPartner, Recurring, ReminderSettings, Status, Task, Workspace } from '../../../src/types.js';
+import type { ItemType, Priority, Project, ProductPartner, Recurring, Release, ReminderSettings, SignOff, SignOffOutcome, Stage, Status, Task, Workspace } from '../../../src/types.js';
 import { createHash } from 'node:crypto';
 import { itemProblem } from '../../../src/shared/itemSchemas.js';
+import { signOffProblem } from '../../../src/shared/delivery.js';
 import { firstStatus, isDone, statusAllowed, typeOf } from '../../../src/shared/itemTypes.js';
 import { mergeStates } from '../../../src/shared/merge.js';
 import { DEFAULT_REMINDERS, allWorkspaceData, emptySnapshot, normalizeState, ownEntry, type SyncedState } from '../../../src/shared/state.js';
@@ -86,7 +89,49 @@ export interface LinkRow {
   to_id: string;
   kind: 'depends_on';
 }
-export type DeletionKind = 'task' | 'project' | 'product' | 'partner' | 'pair';
+/** A stage of a workspace's delivery template (Step 3). */
+export interface StageRow {
+  id: string;
+  workspace_id: string;
+  owner_id: string;
+  client_id: string;
+  name: string;
+  sort_order: number;
+  edited_ms: number;
+  deleted_ms: number | null;
+}
+export interface ReleaseRow {
+  id: string;
+  workspace_id: string;
+  owner_id: string;
+  client_id: string;
+  product_id: string;
+  partner_id: string;
+  name: string;
+  target_date: string | null;
+  edited_ms: number;
+  deleted_ms: number | null;
+}
+/** Never edited or deleted; `created_ms` is the app's updatedAt (when it was recorded). */
+export interface SignOffRow {
+  id: string;
+  workspace_id: string;
+  owner_id: string;
+  client_id: string;
+  release_id: string;
+  stage_id: string;
+  stage_name: string;
+  outcome: SignOffOutcome;
+  approver: string;
+  approver_role: string;
+  /** 'YYYY-MM-DDTHH:MM', as the app holds it. */
+  signed_at: string;
+  evidence_url: string;
+  note: string;
+  corrects_id: string | null;
+  created_ms: number;
+}
+export type DeletionKind = 'task' | 'project' | 'product' | 'partner' | 'pair' | 'stage' | 'release';
 export interface LegacyDeletionRow {
   workspace_id: string;
   kind: DeletionKind;
@@ -108,12 +153,18 @@ export interface Rows {
   pairs: PairRow[];
   items: ItemRow[];
   links: LinkRow[];
+  stages: StageRow[];
+  releases: ReleaseRow[];
+  signoffs: SignOffRow[];
   legacyDeletions: LegacyDeletionRow[];
   settings: SettingsRow | null;
 }
 
 export function emptyRows(): Rows {
-  return { workspaces: [], projects: [], products: [], partners: [], pairs: [], items: [], links: [], legacyDeletions: [], settings: null };
+  return {
+    workspaces: [], projects: [], products: [], partners: [], pairs: [], items: [], links: [], stages: [], releases: [], signoffs: [],
+    legacyDeletions: [], settings: null,
+  };
 }
 
 /** Things the import changed or couldn't carry over exactly; the dry run prints them. */
@@ -126,7 +177,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const COLOR = /^#[0-9a-fA-F]{6}$/;
 const PRIORITIES = new Set<Priority>(['high', 'med', 'low']);
 const RECURRING = new Set(['weekly', 'monthly', 'yearly']);
-const KINDS = new Set<string>(['task', 'project', 'product', 'partner', 'pair']);
+const KINDS = new Set<string>(['task', 'project', 'product', 'partner', 'pair', 'stage', 'release']);
 const LEGACY = 'legacy_';
 
 /** Tombstone keys: '<kind>:<workspace>:<id>' or 'workspace:<id>'. Ids may contain ':'. */
@@ -281,9 +332,58 @@ export function documentToRows(raw: unknown, ownerId: string, newId: () => strin
       }
     }
 
+    // Step 3: the stage template, releases (each on its pair) and sign-offs (each on a release and
+    // stage, a correction after the one it corrects).
+    const stageIds = new Map<string, string>();
+    for (const st of snap.stages) {
+      const id = newId();
+      stageIds.set(st.id, id);
+      if (!st.name.trim() || !Number.isFinite(st.order)) notes.push({ where: `${w.id}/stage ${st.id}`, note: 'stage without a name or order; stored with its id and order 0' });
+      rows.stages.push({
+        id, workspace_id: wsId, owner_id: ownerId, client_id: st.id, name: st.name.trim() || st.id, sort_order: Number.isFinite(st.order) ? st.order : 0,
+        edited_ms: st.updatedAt, deleted_ms: null,
+      });
+    }
+    const releaseIds = new Map<string, string>();
+    for (const r of snap.releases) {
+      const product = productIds.get(r.product);
+      const partner = partnerIds.get(r.partner);
+      const where = `${w.id}/release ${r.id}`;
+      if (!product || !partner || !pairIds.has(`${product}|${partner}`)) {
+        notes.push({ where, note: `${r.product} and ${r.partner} aren't a pair here; the release can't be stored` });
+        continue;
+      }
+      if (r.targetDate && !ISO_DATE.test(r.targetDate)) notes.push({ where, note: `target date ${JSON.stringify(r.targetDate)} isn't YYYY-MM-DD; left out` });
+      const id = newId();
+      releaseIds.set(r.id, id);
+      rows.releases.push({
+        id, workspace_id: wsId, owner_id: ownerId, client_id: r.id, product_id: product, partner_id: partner, name: r.name.trim() || r.id,
+        target_date: r.targetDate && ISO_DATE.test(r.targetDate) ? r.targetDate : null, edited_ms: r.updatedAt, deleted_ms: null,
+      });
+    }
+    const signoffIds = new Map<string, string>();
+    for (const so of snap.signoffs) {
+      const where = `${w.id}/sign-off ${so.id}`;
+      const release = releaseIds.get(so.release);
+      const stage = stageIds.get(so.stage);
+      const corrects = so.corrects ? signoffIds.get(so.corrects) : null;
+      const problem = signOffProblem(so) ?? (!release ? 'its release is missing' : !stage ? 'its stage is missing' : corrects === undefined ? 'the sign-off it corrects is missing' : null);
+      if (problem) {
+        notes.push({ where, note: `${problem}; it can't be stored` });
+        continue;
+      }
+      const id = newId();
+      signoffIds.set(so.id, id);
+      rows.signoffs.push({
+        id, workspace_id: wsId, owner_id: ownerId, client_id: so.id, release_id: release!, stage_id: stage!, stage_name: so.stageName, outcome: so.outcome,
+        approver: so.approver, approver_role: so.role ?? '', signed_at: so.signedAt, evidence_url: so.evidence ?? '', note: so.note ?? '',
+        corrects_id: corrects ?? null, created_ms: so.updatedAt,
+      });
+    }
+
     // A deletion newer than the surviving copy wins (as in merge.ts); otherwise it is remembered.
     const liveRow = (kind: string, id: string): { edited_ms: number; deleted_ms: number | null } | undefined => {
-      const list = { task: rows.items, project: rows.projects, product: rows.products, partner: rows.partners, pair: rows.pairs }[kind] as
+      const list = { task: rows.items, project: rows.projects, product: rows.products, partner: rows.partners, pair: rows.pairs, stage: rows.stages, release: rows.releases }[kind] as
         { workspace_id: string; client_id: string; edited_ms: number; deleted_ms: number | null }[];
       return list.find((r) => r.workspace_id === wsId && r.client_id === id);
     };
@@ -328,6 +428,9 @@ export function rowsToDocument(rows: Rows, activeWorkspaceId?: string, now = Dat
     const partners = inWs(rows.partners);
     const pairs = inWs(rows.pairs);
     const items = inWs(rows.items);
+    const stages = inWs(rows.stages);
+    const releases = inWs(rows.releases);
+    const signoffs = inWs(rows.signoffs);
     const client = (list: { id: string; client_id: string }[]) => new Map(list.map((r) => [r.id, r.client_id]));
     const projectClient = client(projects);
     const productClient = client(products);
@@ -347,6 +450,8 @@ export function rowsToDocument(rows: Rows, activeWorkspaceId?: string, now = Dat
     tombstones('partner', partners);
     tombstones('pair', pairs);
     tombstones('task', items);
+    tombstones('stage', stages);
+    tombstones('release', releases);
     for (const d of rows.legacyDeletions) {
       if (d.workspace_id === w.id) deleted[`${d.kind}:${w.client_id}:${d.client_id}`] = d.deleted_ms;
     }
@@ -357,7 +462,28 @@ export function rowsToDocument(rows: Rows, activeWorkspaceId?: string, now = Dat
         .sort(bySort)
         .map((p) => ({ id: p.client_id, name: p.name, color: p.color, updatedAt: p.edited_ms }));
 
+    const stageClient = client(stages);
+    const releaseClient = client(releases);
+    const signoffClient = client(signoffs);
     workspaceData[w.client_id] = {
+      stages: stages
+        .filter((st) => st.deleted_ms === null)
+        .sort(bySort)
+        .map((st): Stage => ({ id: st.client_id, name: st.name, order: st.sort_order, updatedAt: st.edited_ms })),
+      releases: releases
+        .filter((r) => r.deleted_ms === null)
+        .sort((a, b) => a.client_id.localeCompare(b.client_id))
+        .map((r): Release => ({
+          id: r.client_id, product: productClient.get(r.product_id)!, partner: partnerClient.get(r.partner_id)!, name: r.name,
+          ...(r.target_date ? { targetDate: r.target_date } : {}), updatedAt: r.edited_ms,
+        })),
+      signoffs: [...signoffs]
+        .sort((a, b) => a.created_ms - b.created_ms || a.client_id.localeCompare(b.client_id))
+        .map((so): SignOff => ({
+          id: so.client_id, release: releaseClient.get(so.release_id)!, stage: stageClient.get(so.stage_id)!, stageName: so.stage_name, outcome: so.outcome,
+          approver: so.approver, role: so.approver_role, signedAt: so.signed_at, evidence: so.evidence_url, note: so.note,
+          ...(so.corrects_id ? { corrects: signoffClient.get(so.corrects_id)! } : {}), updatedAt: so.created_ms,
+        })),
       projects: groups(projects),
       products: groups(products),
       partners: groups(partners),
@@ -450,6 +576,10 @@ export function taskKey(workspace: string, t: Task): string {
     t.waitingOn ?? '', t.chaseOn ?? '', t.snoozedUntil ?? '', t.recurring ?? '', remind, t.order, t.updatedAt, [...new Set(t.deps)].sort().join(','), JSON.stringify(t.subs.map((sub) => [sub.text, sub.done])),
     t.notes, details].join('|');
 }
+export const stageKey = (workspace: string, st: Stage) => ['S', workspace, st.id, st.name, st.order, st.updatedAt].join('|');
+export const releaseKey = (workspace: string, r: Release) => ['R', workspace, r.id, r.product, r.partner, r.name, r.targetDate ?? '', r.updatedAt].join('|');
+export const signoffKey = (workspace: string, so: SignOff) =>
+  ['SO', workspace, so.id, so.release, so.stage, so.stageName, so.outcome, so.approver, so.role, so.signedAt, so.evidence, so.note, so.corrects ?? '', so.updatedAt].join('|');
 export const remindersKey = (r: ReminderSettings) => `r|${JSON.stringify(Object.entries(r).sort())}`;
 
 export interface WorkspaceSummary {
@@ -462,6 +592,9 @@ export interface WorkspaceSummary {
   tasks: number;
   done: number;
   dependencies: number;
+  stages: number;
+  releases: number;
+  signoffs: number;
   deletions: number;
 }
 
@@ -485,6 +618,8 @@ export function summariseDocument(raw: unknown, now = Date.now()): { workspaces:
     for (const p of snap.partners) live.add(`partner:${w.id}:${p.id}`);
     for (const p of snap.pairs) live.add(`pair:${w.id}:${p.id}`);
     for (const t of snap.tasks) live.add(`task:${w.id}:${t.id}`);
+    for (const st of snap.stages) live.add(`stage:${w.id}:${st.id}`);
+    for (const r of snap.releases) live.add(`release:${w.id}:${r.id}`);
   }
   // Deletions in workspaces the document doesn't have can't be filed anywhere: the import notes
   // and drops them, so they don't count here either.
@@ -501,6 +636,9 @@ export function summariseDocument(raw: unknown, now = Date.now()): { workspaces:
     for (const p of snap.partners) lines.push(partnerKey(w.id, p));
     for (const p of snap.pairs) lines.push(pairKey(w.id, p));
     for (const t of snap.tasks) lines.push(taskKey(w.id, t));
+    for (const st of snap.stages) lines.push(stageKey(w.id, st));
+    for (const r of snap.releases) lines.push(releaseKey(w.id, r));
+    for (const so of snap.signoffs) lines.push(signoffKey(w.id, so));
     const ws = `:${w.id}:`;
     return {
       workspace: w.id,
@@ -511,6 +649,9 @@ export function summariseDocument(raw: unknown, now = Date.now()): { workspaces:
       tasks: snap.tasks.length,
       done: snap.tasks.filter((t) => isDone(t)).length,
       dependencies: snap.tasks.reduce((n, t) => n + new Set(t.deps).size, 0),
+      stages: snap.stages.length,
+      releases: snap.releases.length,
+      signoffs: snap.signoffs.length,
       deletions: deletions.filter(([key]) => !key.startsWith('workspace:') && key.slice(key.indexOf(':'), key.indexOf(':') + ws.length) === ws).length,
     };
   });

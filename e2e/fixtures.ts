@@ -55,6 +55,9 @@ export function stored(partial: Partial<SyncedState> = {}): StoredState {
       products: [],
       partners: [],
       pairs: [],
+      stages: [],
+      releases: [],
+      signoffs: [],
       workspaces: [DEFAULT_WS],
       activeWorkspaceId: 'default',
       workspaceData: {},
@@ -62,7 +65,7 @@ export function stored(partial: Partial<SyncedState> = {}): StoredState {
       reminders: REMINDERS_OFF,
       ...partial,
     },
-    version: 4,
+    version: 5,
   };
 }
 
