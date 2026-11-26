@@ -56,12 +56,17 @@ function taskFields(t: Task) {
   if (!due_date) details.legacy_due_date = t.dueDate;
   const start_date = t.startDate && ISO_DATE.test(t.startDate) ? t.startDate : null;
   if (t.startDate && !start_date) details.legacy_start_date = t.startDate;
+  const chase_on = t.chaseOn && ISO_DATE.test(t.chaseOn) ? t.chaseOn : null;
+  if (t.chaseOn && !chase_on) details.legacy_chase_on = t.chaseOn;
+  const snoozed_until = t.snoozedUntil && ISO_DATE.test(t.snoozedUntil) ? t.snoozedUntil : null;
+  if (t.snoozedUntil && !snoozed_until) details.legacy_snoozed_until = t.snoozedUntil;
   return {
     type: typeOf(t), project: t.project, product: t.product ?? '', partner: t.partner ?? '',
     title: t.title, status: t.status, priority: t.priority, due_date, start_date, recurring: t.recurring,
     remind_days_before: typeof t.remindDaysBefore === 'number' ? Math.max(0, Math.round(t.remindDaysBefore)) : null,
     remind_off: t.remindDaysBefore === null, notes: t.notes ?? '', sort_order: Number.isFinite(t.order) ? t.order : 0,
     subtasks: t.subs.map((s) => ({ text: s.text, done: s.done })), details, edited_ms: t.updatedAt,
+    waiting_on: typeof t.waitingOn === 'string' ? t.waitingOn : '', chase_on, snoozed_until,
   };
 }
 
@@ -261,15 +266,18 @@ async function applyPlan(db: Queryable, userId: string, rows: Rows, plan: SyncPl
       partner_id = null;
     }
     return [i.type, project_id, product_id, partner_id, i.title, i.status, i.priority, i.due_date, i.start_date, i.recurring,
-      i.remind_days_before, i.remind_off, i.notes, i.sort_order, JSON.stringify(i.subtasks), JSON.stringify(details), i.edited_ms];
+      i.remind_days_before, i.remind_off, i.notes, i.sort_order, JSON.stringify(i.subtasks), JSON.stringify(details), i.edited_ms,
+      i.waiting_on, i.chase_on, i.snoozed_until];
   };
   const itemIds = new Map(rows.items.map((i) => [`${i.workspace_id}:${i.client_id}`, i.id]));
   for (const i of plan.newItems) {
     const workspace = wsId.get(i.workspace)!;
     const made = await db.query<{ id: string }>(
       `insert into items (type, project_id, product_id, partner_id, title, status, priority, due_date, start_date, recurring, remind_days_before,
-                          remind_off, notes, sort_order, subtasks, details, edited_at, workspace_id, owner_id, client_id, created_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, ${time('$17')}, $18, $19, $20, ${time('$21')}) returning id`,
+                          remind_off, notes, sort_order, subtasks, details, edited_at, waiting_on, chase_on, snoozed_until,
+                          workspace_id, owner_id, client_id, created_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, ${time('$17')}, $18, $19, $20,
+               $21, $22, $23, ${time('$24')}) returning id`,
       [...place(workspace, i), workspace, userId, i.client_id, i.created_ms],
     );
     itemIds.set(`${workspace}:${i.client_id}`, made.rows[0].id);
@@ -278,8 +286,8 @@ async function applyPlan(db: Queryable, userId: string, rows: Rows, plan: SyncPl
     await db.query(
       `update items set type = $1, project_id = $2, product_id = $3, partner_id = $4, title = $5, status = $6, priority = $7, due_date = $8,
               start_date = $9, recurring = $10, remind_days_before = $11, remind_off = $12, notes = $13, sort_order = $14, subtasks = $15,
-              details = $16, edited_at = ${time('$17')}, deleted_at = null
-        where id = $18`,
+              details = $16, edited_at = ${time('$17')}, waiting_on = $18, chase_on = $19, snoozed_until = $20, deleted_at = null
+        where id = $21`,
       [...place(wsId.get(i.workspace)!, i), i.id],
     );
   }

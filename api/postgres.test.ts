@@ -143,7 +143,8 @@ describe.skipIf(!OWNER_URL || !APP_URL)('the API on Postgres (TEST_DB_OWNER_URL,
     const today = nowInZone('Africa/Kampala').date;
     const upload = (await call(state, 'GET', { token })).body;
     upload.state.tasks.unshift(task('due-now', 'home', { title: 'Due today', dueDate: today, updatedAt: Date.now() }));
-    upload.state.reminders = { ...upload.state.reminders, email: A_ADDRESS, updatedAt: Date.now() };
+    // Digest at midnight, so the timer test below sends it at any time of day.
+    upload.state.reminders = { ...upload.state.reminders, email: A_ADDRESS, digestTime: '00:00', updatedAt: Date.now() };
     const merged = await call(state, 'POST', { token, body: upload });
     expect(merged.status).toBe(200);
     expect(merged.body.state.tasks[0]).toMatchObject({ id: 'due-now', dueDate: today });

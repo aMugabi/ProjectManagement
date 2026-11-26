@@ -1,0 +1,107 @@
+[
+ {
+  "name": "chase dates read as Date objects",
+  "file": "api/_lib/db/rows.ts",
+  "find": "chase_on::text chase_on,",
+  "replace": "chase_on,",
+  "test": "npx vitest run api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "snooze read as Date objects",
+  "file": "api/_lib/db/rows.ts",
+  "find": "snoozed_until::text snoozed_until,",
+  "replace": "snoozed_until,",
+  "test": "npx vitest run api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "import drops waiting on",
+  "file": "api/_lib/db/rows.ts",
+  "find": "            r.waiting_on, r.chase_on, r.snoozed_until, r.recurring,",
+  "replace": "            '', r.chase_on, r.snoozed_until, r.recurring,",
+  "test": "npx vitest run api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "converter drops waiting on",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "waiting_on: typeof t.waitingOn === 'string' ? t.waitingOn : '', chase_on: chaseOn,",
+  "replace": "waiting_on: '', chase_on: chaseOn,",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts api/_lib/db/db.test.ts"
+ },
+ {
+  "name": "converter loses a bad chase date",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "if (t.chaseOn && !chaseOn) details.legacy_chase_on = t.chaseOn;",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "converter loses a bad snooze",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "if (t.snoozedUntil && !snoozedUntil) details.legacy_snoozed_until = t.snoozedUntil;",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "read back without chase date",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "          if (chase) task.chaseOn = chase;",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "read back without snooze",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "          if (snooze) task.snoozedUntil = snooze;",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "read back without waiting on",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "          if (i.waiting_on) task.waitingOn = i.waiting_on;",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "checksum ignores Step 2 fields",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "    t.waitingOn ?? '', t.chaseOn ?? '', t.snoozedUntil ?? '', t.recurring ?? '',",
+  "replace": "    t.recurring ?? '',",
+  "test": "npx vitest run api/_lib/db/mapping.test.ts api/_lib/db/sync.test.ts api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "sync never updates waiting on",
+  "file": "api/_lib/db/sync.ts",
+  "find": "waiting_on = $18, chase_on = $19,",
+  "replace": "chase_on = $19,",
+  "test": "npx vitest run api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "sync update swaps chase and snooze",
+  "file": "api/_lib/db/sync.ts",
+  "find": "chase_on = $19, snoozed_until = $20,",
+  "replace": "chase_on = $20, snoozed_until = $19,",
+  "test": "npx vitest run api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "sync drops a bad chase date",
+  "file": "api/_lib/db/sync.ts",
+  "find": "  if (t.chaseOn && !chase_on) details.legacy_chase_on = t.chaseOn;",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "sync drops a bad snooze",
+  "file": "api/_lib/db/sync.ts",
+  "find": "  if (t.snoozedUntil && !snoozed_until) details.legacy_snoozed_until = t.snoozedUntil;",
+  "replace": "",
+  "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/catalogue.test.ts"
+ },
+ {
+  "name": "sync insert loses waiting on",
+  "file": "api/_lib/db/sync.ts",
+  "find": "      i.waiting_on, i.chase_on, i.snoozed_until];",
+  "replace": "      '', i.chase_on, i.snoozed_until];",
+  "test": "npx vitest run api/_lib/db/catalogue.test.ts api/_lib/db/db.test.ts"
+ }
+]

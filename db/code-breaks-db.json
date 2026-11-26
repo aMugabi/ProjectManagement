@@ -177,8 +177,8 @@
  {
   "name": "sync: edits don't undelete",
   "file": "api/_lib/db/sync.ts",
-  "find": "              details = $16, edited_at = ${time('$17')}, deleted_at = null\n        where id = $18`,",
-  "replace": "              details = $16, edited_at = ${time('$17')}\n        where id = $18`,",
+  "find": "waiting_on = $18, chase_on = $19, snoozed_until = $20, deleted_at = null\n        where id = $21`,",
+  "replace": "waiting_on = $18, chase_on = $19, snoozed_until = $20\n        where id = $21`,",
   "test": "npx vitest run api/_lib/db/sync.test.ts api/_lib/db/db.test.ts api/_lib/db/catalogue.test.ts"
  },
  {

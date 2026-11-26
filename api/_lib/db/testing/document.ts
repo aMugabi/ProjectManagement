@@ -37,7 +37,7 @@ export function document(): SyncedState {
           status: 'doing', priority: 'high', deps: ['t2'], subs: [{ text: 'Call', done: true }, { text: 'Write', done: false }],
           recurring: 'weekly', remindDaysBefore: 3, startDate: '2026-11-20', notes: 'Notes\nwith a line', order: 2,
         }),
-        task('t2', 'home', { status: 'done', remindDaysBefore: null, order: -1 }),
+        task('t2', 'home', { status: 'done', remindDaysBefore: null, order: -1, waitingOn: 'Bank IT', chaseOn: '2026-12-02', snoozedUntil: '2026-11-29' }),
         task('t3', 'admin', { title: 'Plain', updatedAt: 0 }),
       ],
       workspaceData: {

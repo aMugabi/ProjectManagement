@@ -1,0 +1,27 @@
+[
+ {
+  "name": "app can't set them",
+  "find": "grant update (waiting_on, chase_on, snoozed_until) on items to ledger_app;",
+  "replace": ""
+ },
+ {
+  "name": "no chase index",
+  "find": "create index items_chase on items (workspace_id, chase_on) where deleted_at is null and chase_on is not null;",
+  "replace": ""
+ },
+ {
+  "name": "waiting_on default",
+  "find": "add column waiting_on text not null default '',",
+  "replace": "add column waiting_on text not null default 'nobody',"
+ },
+ {
+  "name": "chase_on dropped",
+  "find": "  add column chase_on date,\n",
+  "replace": ""
+ },
+ {
+  "name": "snoozed_until dropped",
+  "find": ",\n  add column snoozed_until date;",
+  "replace": ";"
+ }
+]

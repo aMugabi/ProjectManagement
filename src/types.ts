@@ -39,6 +39,12 @@ export interface Task {
   dueDate: string;
   /** Optional start date for timeline bars with a true span */
   startDate?: string;
+  /** Who or what the item waits on (Step 2); absent or '' = nobody. */
+  waitingOn?: string;
+  /** ISO date to chase whoever it waits on. */
+  chaseOn?: string;
+  /** ISO date: until that day the item stays out of reminders and the dashboard. */
+  snoozedUntil?: string;
   subs: Subtask[];
   recurring: Recurring;
   deps: string[];

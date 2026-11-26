@@ -36,7 +36,7 @@ export async function readRows(db: Queryable, userId: string): Promise<Rows> {
   );
   const items = await db.query<ItemRow>(
     `select id, workspace_id, owner_id, client_id, type, project_id, product_id, partner_id, title, status, priority, due_date::text due_date,
-            start_date::text start_date, recurring, remind_days_before, remind_off, notes, sort_order, subtasks, details,
+            start_date::text start_date, waiting_on, chase_on::text chase_on, snoozed_until::text snoozed_until, recurring, remind_days_before, remind_off, notes, sort_order, subtasks, details,
             ${ms('created_at')} created_ms, ${ms('edited_at')} edited_ms, ${ms('deleted_at')} deleted_ms
        from items where workspace_id in (${MINE})`,
     [userId],
@@ -92,13 +92,13 @@ export async function insertRows(db: Queryable, rows: Rows): Promise<void> {
   );
   await db.query(
     `insert into items (id, workspace_id, owner_id, client_id, type, project_id, product_id, partner_id, title, status, priority, due_date, start_date,
-                        recurring, remind_days_before, remind_off, notes, sort_order, subtasks, details, created_at, edited_at, deleted_at)
+                        waiting_on, chase_on, snoozed_until, recurring, remind_days_before, remind_off, notes, sort_order, subtasks, details, created_at, edited_at, deleted_at)
      select r.id, r.workspace_id, r.owner_id, r.client_id, r.type, r.project_id, r.product_id, r.partner_id, r.title, r.status, r.priority, r.due_date, r.start_date,
-            r.recurring, r.remind_days_before, r.remind_off, r.notes, r.sort_order, r.subtasks, r.details,
+            r.waiting_on, r.chase_on, r.snoozed_until, r.recurring, r.remind_days_before, r.remind_off, r.notes, r.sort_order, r.subtasks, r.details,
             ${time('created_ms')}, ${time('edited_ms')}, ${time('deleted_ms')}
        from jsonb_to_recordset($1::jsonb)
          as r(id uuid, workspace_id uuid, owner_id uuid, client_id text, type text, project_id uuid, product_id uuid, partner_id uuid, title text, status text, priority text,
-              due_date date, start_date date, recurring text, remind_days_before int, remind_off boolean, notes text, sort_order float8,
+              due_date date, start_date date, waiting_on text, chase_on date, snoozed_until date, recurring text, remind_days_before int, remind_off boolean, notes text, sort_order float8,
               subtasks jsonb, details jsonb, created_ms float8, edited_ms float8, deleted_ms float8)`,
     [json(rows.items)],
   );

@@ -149,4 +149,31 @@ describe.skipIf(!OWNER_URL || !APP_URL)('products, partners and item types on Po
     expect(project.rows).toEqual([{ deleted: true }]); // kept, marked deleted
     expect(summariseDocument(reply, now)).toEqual(summariseDocument(rowsToDocument(await read(), 'default', now), now));
   });
+
+  it('syncs who an item waits on, its chase date and its snooze, and clears them (Step 2)', async () => {
+    const now = NOW + 6000;
+    const upload = rowsToDocument(await read(), 'default', now);
+    const i1 = upload.workspaceData.bank.tasks.find((t) => t.id === 'i1')!;
+    Object.assign(i1, { waitingOn: 'Fintech ops', chaseOn: '2026-12-03', snoozedUntil: '2026-12-01', updatedAt: now });
+    // A new item, with dates the columns can't hold: kept as notes and given back as they were.
+    upload.workspaceData.bank.tasks.unshift(task('w-new', '', { waitingOn: 'Telco IT', chaseOn: 'Friday', snoozedUntil: 'later', updatedAt: now }));
+    const reply = await sync(upload, now);
+    expect(reply.workspaceData.bank.tasks.find((t) => t.id === 'i1')).toMatchObject({ waitingOn: 'Fintech ops', chaseOn: '2026-12-03', snoozedUntil: '2026-12-01' });
+    expect(reply.workspaceData.bank.tasks.find((t) => t.id === 'w-new')).toMatchObject({ waitingOn: 'Telco IT', chaseOn: 'Friday', snoozedUntil: 'later' });
+    const made = await owner.query("select waiting_on, chase_on, details from items where owner_id = $1 and client_id = 'w-new'", [userId]);
+    expect(made.rows).toEqual([{ waiting_on: 'Telco IT', chase_on: null, details: { legacy_chase_on: 'Friday', legacy_snoozed_until: 'later' } }]);
+    const stored = () => owner.query("select waiting_on, chase_on::text, snoozed_until::text from items where owner_id = $1 and client_id = 'i1'", [userId]);
+    expect((await stored()).rows).toEqual([{ waiting_on: 'Fintech ops', chase_on: '2026-12-03', snoozed_until: '2026-12-01' }]);
+
+    const later = rowsToDocument(await read(), 'default', now + 1);
+    const again = later.workspaceData.bank.tasks.find((t) => t.id === 'i1')!;
+    delete again.waitingOn;
+    delete again.chaseOn;
+    delete again.snoozedUntil;
+    again.updatedAt = now + 1;
+    const cleared = await sync(later, now + 1);
+    const back = cleared.workspaceData.bank.tasks.find((t) => t.id === 'i1')!;
+    expect([back.waitingOn, back.chaseOn, back.snoozedUntil]).toEqual([undefined, undefined, undefined]);
+    expect((await stored()).rows).toEqual([{ waiting_on: '', chase_on: null, snoozed_until: null }]);
+  });
 });

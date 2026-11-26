@@ -62,6 +62,10 @@ export interface ItemRow {
   priority: Priority;
   due_date: string | null;
   start_date: string | null;
+  /** Step 2: '' = nobody. */
+  waiting_on: string;
+  chase_on: string | null;
+  snoozed_until: string | null;
   recurring: Recurring;
   remind_days_before: number | null;
   remind_off: boolean;
@@ -256,9 +260,14 @@ export function documentToRows(raw: unknown, ownerId: string, newId: () => strin
       const recurring = t.recurring && RECURRING.has(t.recurring) ? t.recurring : null;
       const startDate = t.startDate && ISO_DATE.test(t.startDate) ? t.startDate : null;
       if (t.startDate && !startDate) details.legacy_start_date = t.startDate;
+      const chaseOn = t.chaseOn && ISO_DATE.test(t.chaseOn) ? t.chaseOn : null;
+      if (t.chaseOn && !chaseOn) details.legacy_chase_on = t.chaseOn;
+      const snoozedUntil = t.snoozedUntil && ISO_DATE.test(t.snoozedUntil) ? t.snoozedUntil : null;
+      if (t.snoozedUntil && !snoozedUntil) details.legacy_snoozed_until = t.snoozedUntil;
       rows.items.push({
         id, workspace_id: wsId, owner_id: ownerId, client_id: t.id, type, project_id: projectId, product_id: productId, partner_id: partnerId,
         title: t.title, status, priority, due_date: dueDate, start_date: startDate, recurring,
+        waiting_on: typeof t.waitingOn === 'string' ? t.waitingOn : '', chase_on: chaseOn, snoozed_until: snoozedUntil,
         remind_days_before: typeof t.remindDaysBefore === 'number' ? Math.max(0, Math.round(t.remindDaysBefore)) : null,
         remind_off: t.remindDaysBefore === null,
         notes: t.notes ?? '', sort_order: Number.isFinite(t.order) ? t.order : 0,
@@ -385,6 +394,11 @@ export function rowsToDocument(rows: Rows, activeWorkspaceId?: string, now = Dat
           if (Object.keys(own).length) task.details = own;
           const start = i.start_date ?? (i.details.legacy_start_date as string | undefined);
           if (start) task.startDate = start;
+          if (i.waiting_on) task.waitingOn = i.waiting_on;
+          const chase = i.chase_on ?? (i.details.legacy_chase_on as string | undefined);
+          if (chase) task.chaseOn = chase;
+          const snooze = i.snoozed_until ?? (i.details.legacy_snoozed_until as string | undefined);
+          if (snooze) task.snoozedUntil = snooze;
           if (i.remind_off) task.remindDaysBefore = null;
           else if (i.remind_days_before !== null) task.remindDaysBefore = i.remind_days_before;
           return task;
@@ -433,7 +447,7 @@ export function taskKey(workspace: string, t: Task): string {
   const remind = t.remindDaysBefore === undefined ? 'default' : String(t.remindDaysBefore);
   const details = t.details && Object.keys(t.details).length ? canonical(t.details) : '';
   return ['t', workspace, t.id, typeOf(t), t.project, t.product ?? '', t.partner ?? '', t.title, t.status, t.priority, t.dueDate, t.startDate ?? '',
-    t.recurring ?? '', remind, t.order, t.updatedAt, [...new Set(t.deps)].sort().join(','), JSON.stringify(t.subs.map((sub) => [sub.text, sub.done])),
+    t.waitingOn ?? '', t.chaseOn ?? '', t.snoozedUntil ?? '', t.recurring ?? '', remind, t.order, t.updatedAt, [...new Set(t.deps)].sort().join(','), JSON.stringify(t.subs.map((sub) => [sub.text, sub.done])),
     t.notes, details].join('|');
 }
 export const remindersKey = (r: ReminderSettings) => `r|${JSON.stringify(Object.entries(r).sort())}`;
