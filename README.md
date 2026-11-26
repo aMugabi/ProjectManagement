@@ -84,6 +84,23 @@ offline and edits on other devices are both kept.
 — have no API, so they skip the password gate, keep data in that browser only, and show
 "Local only · this browser" in the sidebar. Use `vercel dev` to run the cloud build locally.
 
+## Backups (Vercel deploy only)
+
+`npm run backup` signs in (password, and code if MFA is on), downloads the whole cloud copy,
+saves it encrypted with gpg, and signs that session out. The unencrypted data never touches the
+disk. Backups go to `~/ledger-backups/` (set `LEDGER_BACKUP_DIR` to change it; never inside this
+repository, which is public). Keep a second copy somewhere else, such as an external drive.
+
+- **Encryption:** set `LEDGER_BACKUP_RECIPIENT` to your gpg key's email or id to encrypt to that
+  key (make one with `gpg --quick-gen-key "Your Name <you@example.org>"`, and back up its private
+  half too). Without it, gpg asks for a passphrase (AES-256).
+- **Check a backup:** `npm run backup -- --verify FILE` decrypts it and prints counts per
+  workspace, never the content.
+- **Restore:** `npm run backup -- --restore FILE` uploads it, merged with the cloud copy: newer
+  edits there are kept, and anything deleted since the backup stays deleted. It asks you to type
+  `restore` first.
+- `LEDGER_URL` points the script at another deploy.
+
 ## Reminders and notifications
 
 Ledger warns you about tasks that are overdue, due today or coming up:

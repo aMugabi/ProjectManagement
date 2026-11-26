@@ -12,7 +12,7 @@ export default defineConfig({
     'import.meta.env.VITE_CLOUD': JSON.stringify(process.env.VERCEL ? 'true' : ''),
   },
   test: {
-    include: ['src/**/*.test.ts', 'api/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'api/**/*.test.ts', 'scripts/**/*.test.mjs'],
   },
   plugins: [
     react(),

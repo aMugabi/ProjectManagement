@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "hash-password": "node scripts/hash-password.mjs",
     "setup-mfa": "node scripts/setup-mfa.mjs",
+    "backup": "node scripts/backup.mjs",
     "test:e2e": "playwright test"
   },
   "dependencies": {
