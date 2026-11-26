@@ -136,12 +136,12 @@
  },
  {
   "name": "workspaces: any column updatable",
-  "find": "grant update (name, edited_at, deleted_at) on workspaces to ledger_app;",
+  "find": "grant update (name, sort_order, edited_at, deleted_at) on workspaces to ledger_app;",
   "replace": "grant update on workspaces to ledger_app;"
  },
  {
   "name": "projects: any column updatable",
-  "find": "grant update (name, color, edited_at, deleted_at) on projects to ledger_app;",
+  "find": "grant update (name, color, sort_order, edited_at, deleted_at) on projects to ledger_app;",
   "replace": "grant update on projects to ledger_app;"
  },
  {

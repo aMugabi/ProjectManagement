@@ -5,7 +5,7 @@ import type { Project, ReminderSettings, Task, Workspace, WorkspaceSnapshot } fr
 export const STATE_VERSION = 3;
 
 /** Tombstones older than this are dropped; a device offline longer than this could resurrect a deleted item. */
-const TOMBSTONE_TTL_MS = 60 * 24 * 60 * 60 * 1000;
+export const TOMBSTONE_TTL_MS = 60 * 24 * 60 * 60 * 1000;
 
 export interface SyncedState {
   tasks: Task[];

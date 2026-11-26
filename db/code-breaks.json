@@ -1,0 +1,149 @@
+[
+ {
+  "name": "never-remind lost on import",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "remind_off: t.remindDaysBefore === null,",
+  "replace": "remind_off: false,",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "never-remind lost on export",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "if (i.remind_off) task.remindDaysBefore = null;",
+  "replace": "if (false) task.remindDaysBefore = null;",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "days-before lost on export",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "else if (i.remind_days_before !== null) task.remindDaysBefore = i.remind_days_before;",
+  "replace": "else if (false) task.remindDaysBefore = i.remind_days_before;",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "start date lost",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "if (start) task.startDate = start;",
+  "replace": "if (false) task.startDate = start;",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "subtasks lost",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "            subs: i.subtasks,",
+  "replace": "            subs: [],",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "dependencies not imported",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "if (to && dep !== t.id) rows.links.push(",
+  "replace": "if (false) rows.links.push(",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "dependencies not exported",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "if (l.workspace_id === w.id && to) deps.set(",
+  "replace": "if (false) deps.set(",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "newer deletion not applied",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "if (live && at >= live.edited_ms) live.deleted_ms = at;",
+  "replace": "if (false) live.deleted_ms = at;",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "older deletion applied anyway",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "if (live && at >= live.edited_ms) live.deleted_ms = at;",
+  "replace": "if (live) live.deleted_ms = at;",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "remembered deletion dropped",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "else if (!live) rows.legacyDeletions.push(",
+  "replace": "else if (false) rows.legacyDeletions.push(",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "legacy deletions not exported",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "if (d.workspace_id === w.id) deleted[",
+  "replace": "if (false) deleted[",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "missing project not kept",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "        details.legacy_project = t.project;\n",
+  "replace": "",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "bad due date not kept",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "        details.legacy_due_date = t.dueDate;\n",
+  "replace": "",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "projects not sorted",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "        .filter((p) => p.deleted_ms === null)\n        .sort(bySort)",
+  "replace": "        .filter((p) => p.deleted_ms === null)",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "workspaces not sorted",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "const liveWorkspaces = rows.workspaces.filter((w) => w.deleted_ms === null).sort(bySort);",
+  "replace": "const liveWorkspaces = rows.workspaces.filter((w) => w.deleted_ms === null);",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "tasks not in list order",
+  "file": "api/_lib/db/mapping.ts",
+  "find": ".sort((a, b) => b.created_ms - a.created_ms || a.client_id.localeCompare(b.client_id))",
+  "replace": ".sort((a, b) => a.client_id.localeCompare(b.client_id))",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "settings edit time lost",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "? { ...DEFAULT_REMINDERS, ...rows.settings.reminders, updatedAt: rows.settings.edited_ms }",
+  "replace": "? { ...DEFAULT_REMINDERS, ...rows.settings.reminders, updatedAt: 0 }",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "active workspace ignored",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "const active = workspaces.some((w) => w.id === activeWorkspaceId) ? activeWorkspaceId! : (workspaces[0]?.id ?? 'default');",
+  "replace": "const active = workspaces[0]?.id ?? 'default';",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "summary ignores titles",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "t.id, t.project, t.title, t.status,",
+  "replace": "t.id, t.project, t.status,",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "summary counts overridden deletions",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "const deletions = Object.entries(state.deleted).filter(([key]) => !live.has(key));",
+  "replace": "const deletions = Object.entries(state.deleted);",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ },
+ {
+  "name": "summary sensitive to task order",
+  "file": "api/_lib/db/mapping.ts",
+  "find": "  lines.sort();\n  return { workspaces, checksum",
+  "replace": "  return { workspaces, checksum",
+  "test": "PATH=$HOME/.local/node/bin:$PATH npx vitest run api/_lib/db/mapping.test.ts"
+ }
+]

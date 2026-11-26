@@ -123,6 +123,7 @@ create table workspaces (
   owner_id uuid not null references users,
   client_id text not null check (length(client_id) > 0),
   name text not null check (length(btrim(name)) > 0),
+  sort_order double precision not null default 0,
   edited_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -152,6 +153,7 @@ create table projects (
   client_id text not null check (length(client_id) > 0),
   name text not null check (length(btrim(name)) > 0),
   color text not null default '#b4674a' check (color ~ '^#[0-9a-fA-F]{6}$'),
+  sort_order double precision not null default 0,
   edited_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -368,10 +370,10 @@ grant select, insert, delete on reminders_sent to ledger_app;
 -- Updates are limited to the columns an edit can change: a row can't be moved to another
 -- workspace or given to another owner.
 grant select on workspaces to ledger_app;
-grant update (name, edited_at, deleted_at) on workspaces to ledger_app;
+grant update (name, sort_order, edited_at, deleted_at) on workspaces to ledger_app;
 grant select on workspace_members to ledger_app;
 grant select, insert on projects, items to ledger_app;
-grant update (name, color, edited_at, deleted_at) on projects to ledger_app;
+grant update (name, color, sort_order, edited_at, deleted_at) on projects to ledger_app;
 grant update (type, project_id, title, status, priority, due_date, start_date, recurring, remind_days_before,
   remind_off, notes, sort_order, subtasks, details, edited_at, deleted_at) on items to ledger_app;
 grant select, insert, delete on item_links to ledger_app;
