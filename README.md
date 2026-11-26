@@ -56,8 +56,10 @@ devices. To enable it on a Vercel deployment:
    ```
 3. Add the printed `scrypt$…` value as the `AUTH_PASSWORD_HASH` environment variable on the
    Vercel project, then redeploy. The password itself is never stored anywhere.
-4. Turn on the second sign-in step (MFA): run `npm run setup-mfa`, add the setup key it prints to
-   an authenticator app (*Enter a setup key*), type the code the app shows, then add the printed
+4. Turn on the second sign-in step (MFA): run `npm run setup-mfa` in your own terminal (not
+   through a chat or anything that records output), scan the QR code it draws with an
+   authenticator app (or use *Enter a setup key* with the key it prints), type the code the app
+   shows, then add the printed
    `AUTH_TOTP_SECRET` and `AUTH_RECOVERY_CODES` values to the Vercel project and redeploy. Keep
    the ten recovery codes in a password manager or on paper: each signs in once without the phone.
    Running the script again makes a new key and new codes (the old ones stop working once the

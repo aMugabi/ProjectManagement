@@ -1,15 +1,18 @@
 #!/usr/bin/env node
 // Sets up the authenticator-app code that sign-in asks for after the password (MFA).
 // Usage: npm run setup-mfa
-//   1. Prints a setup key: add it to your authenticator app (Microsoft Authenticator, Google
-//      Authenticator, 1Password, ...) with "Enter a setup key" / "Enter code manually".
+//   1. Shows a QR code to scan with your authenticator app (Microsoft Authenticator, Google
+//      Authenticator, 1Password, ...), and the same setup key as text for "Enter a setup key".
 //   2. Asks for the code the app now shows, to prove the app and Ledger agree.
 //   3. Prints the two environment variables for the Vercel project, and 10 one-time recovery codes.
-// Nothing is sent anywhere and nothing is saved: the output exists only in this terminal.
+// Nothing is sent anywhere and nothing is saved: the output exists only in this terminal (the QR
+// code is drawn here, by the uqr package, with no network). Run it in your own terminal, not
+// through a chat or anything that records its output.
 // Must match api/_lib/totp.ts (api/_lib/totp.test.ts checks the two against each other).
 import { createHash, createHmac, randomBytes, randomInt } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import { pathToFileURL } from 'node:url';
+import { encode } from 'uqr';
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
@@ -66,6 +69,34 @@ export function generateRecoveryCodes(count = 10) {
   });
 }
 
+/**
+ * The QR code for `text` as terminal lines, two rows of squares per line using half blocks
+ * (▀ top dark, ▄ bottom dark, █ both). Dark squares are the drawn characters, so print it dark
+ * on light (see qrForTerminal); a 2-square light border is included.
+ */
+export function qrLines(text) {
+  const { data, size } = encode(text, { ecc: 'M', border: 2 });
+  const dark = (x, y) => y < size && data[y][x];
+  const lines = [];
+  for (let y = 0; y < size; y += 2) {
+    let line = '';
+    for (let x = 0; x < size; x++) {
+      const top = dark(x, y);
+      const bottom = dark(x, y + 1);
+      line += top && bottom ? '\u2588' : top ? '\u2580' : bottom ? '\u2584' : ' ';
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+
+/** Black on white in a terminal, whatever its theme: phone scanners need dark squares on light. */
+export function qrForTerminal(text, colour = process.stdout.isTTY) {
+  return qrLines(text)
+    .map((line) => (colour ? `  \x1b[30;107m${line}\x1b[0m` : `  ${line}`))
+    .join('\n');
+}
+
 export function hashRecoveryCode(code) {
   return createHash('sha256').update(code.toLowerCase().replace(/[^a-z0-9]/g, '')).digest('hex');
 }
@@ -75,10 +106,14 @@ async function main() {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const ask = (question) => new Promise((resolve) => rl.question(question, resolve));
 
-  console.log('\nAdd Ledger to your authenticator app with this setup key (time-based, 6 digits):\n');
+  const link = `otpauth://totp/Ledger?secret=${secret}&issuer=Ledger&algorithm=SHA1&digits=6&period=30`;
+
+  console.log('\nScan this with your authenticator app (it holds the secret: no screenshots or photos):\n');
+  console.log(qrForTerminal(link));
+  console.log('\nOr add it by hand with this setup key (time-based, 6 digits):\n');
   console.log(`  ${secret.match(/.{1,4}/g).join(' ')}\n`);
   console.log('Apps that take a link instead can use (do not paste it into a website or QR generator):');
-  console.log(`  otpauth://totp/Ledger?secret=${secret}&issuer=Ledger&algorithm=SHA1&digits=6&period=30\n`);
+  console.log(`  ${link}\n`);
 
   let confirmed = false;
   for (let attempt = 0; attempt < 3 && !confirmed; attempt++) {
