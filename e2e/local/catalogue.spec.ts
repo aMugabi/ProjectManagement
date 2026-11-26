@@ -1,4 +1,4 @@
-import { drawer, expect, HOME, openSidebar, openTaskLink, savedState, seed, stored, task, test } from '../fixtures';
+import { drawer, expect, HOME, openSettings, openSidebar, openTaskLink, savedState, seed, stored, task, test } from '../fixtures';
 
 const LOANS = { ...HOME, id: 'loans', name: 'Loans', color: '#7b6a94' };
 const TELCO = { ...HOME, id: 'telco', name: 'Telco', color: '#4f7a86' };
@@ -105,5 +105,55 @@ test.describe('local-only build: products, partners and item types (Step 1b)', (
     expect(state.tasks.map((t) => [t.id, t.product ?? '', t.partner ?? ''])).toEqual([['a', '', 'telco'], ['b', '', '']]);
     expect(state.pairs).toEqual([]);
     expect(Object.keys(state.deleted)).toEqual(expect.arrayContaining(['product:default:loans', 'pair:default:loans+telco']));
+  });
+
+  test('sorts projects into products and partners, after a dry run', async ({ page }) => {
+    page.on('dialog', (dlg) => dlg.accept());
+    const MTN = { ...HOME, id: 'loans-mtn', name: 'Loans MTN', color: '#7b6a94' };
+    const CARDS = { ...HOME, id: 'cards', name: 'Cards', color: '#4f7a86' };
+    await seed(
+      page,
+      stored({
+        projects: [HOME, MTN, CARDS],
+        tasks: [
+          task('a', 'Settlement file', 2, { project: 'loans-mtn' }),
+          task('b', 'Card limits', 2, { project: 'cards', status: 'done' }),
+          task('c', 'Home item', 2),
+        ],
+      }),
+    );
+    await page.goto('dashboard');
+    await openSettings(page);
+    await page.getByRole('dialog', { name: 'Settings' }).getByRole('button', { name: 'Open' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sort projects');
+    await expect(page.getByRole('row', { name: /Cards/ })).toContainText('0 open · 1 done');
+
+    await page.getByLabel('What "Loans MTN" becomes').selectOption('pair');
+    await page.getByLabel('Product for "Loans MTN"').fill('Loans');
+    await expect(page.getByText('Give a name for: Loans MTN.')).toBeVisible(); // the partner has no name yet
+    await expect(page.getByRole('button', { name: 'Sort projects' })).toBeDisabled();
+    await page.getByLabel('Partner for "Loans MTN"').fill('MTN');
+    await page.getByLabel('What "Cards" becomes').selectOption('product');
+    const dry = page.getByLabel('Dry run');
+    await expect(dry).toContainText('2 projects sorted, 1 project stays; 2 items move.');
+    await expect(dry).toContainText('New products: Loans, Cards. New partners: MTN.');
+    await expect(dry).toContainText('New pairs: Loans · MTN.');
+    expect((await savedState(page)).state.products).toEqual([]); // a dry run changes nothing
+
+    await page.getByRole('button', { name: 'Sort 2 projects' }).click();
+    await expect(page.getByRole('status')).toHaveText('Done: 2 projects sorted and 2 items moved; 3 items before and after.');
+    await expect.poll(async () => (await savedState(page)).state.projects.map((p) => p.id)).toEqual(['home']);
+    const { state } = await savedState(page);
+    expect(state.products.map((p) => [p.id, p.name, p.color])).toEqual([['loans', 'Loans', '#7b6a94'], ['cards', 'Cards', '#4f7a86']]);
+    expect(state.partners.map((p) => p.name)).toEqual(['MTN']);
+    expect(state.pairs.map((p) => p.id)).toEqual(['loans+mtn']);
+    expect(state.tasks.map((t) => [t.id, t.project, t.product ?? '', t.partner ?? '', t.status])).toEqual([
+      ['a', '', 'loans', 'mtn', 'todo'],
+      ['b', '', 'cards', '', 'done'],
+      ['c', 'home', '', '', 'todo'],
+    ]);
+    expect(Object.keys(state.deleted)).toEqual(expect.arrayContaining(['project:default:loans-mtn', 'project:default:cards']));
+    await expect(page.getByLabel('What "Home" becomes')).toBeVisible(); // only the project left to sort
+    await expect(page.getByLabel('What "Cards" becomes')).toHaveCount(0);
   });
 });

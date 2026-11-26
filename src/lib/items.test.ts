@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptySnapshot } from '../shared/state';
 import type { Task } from '../types';
-import { homeValue, parseHome, withDetail, withHome, withoutGroup, withType } from './items';
+import { convertProject, homeValue, sortProjects, sortSummary, uniqueId, parseHome, withDetail, withHome, withoutGroup, withType } from './items';
 
 const item = (extra: Partial<Task> = {}): Task => ({
   id: 'i', project: '', title: 'T', status: 'todo', priority: 'med', dueDate: '2026-12-01', subs: [], recurring: null, deps: [],
@@ -91,5 +91,103 @@ describe('withoutGroup', () => {
     expect(next.pairs.map((p) => p.id)).toEqual(['loans+bureau']);
     expect(next.tasks.find((t) => t.id === 'a')).toMatchObject({ product: 'loans', updatedAt: 50 });
     expect(Object.keys(deleted)).toEqual(['partner:bank:telco', 'pair:bank:loans+telco']);
+  });
+});
+
+describe('convertProject', () => {
+  const snap = {
+    ...emptySnapshot(),
+    projects: [{ id: 'mobile-loans', name: 'Mobile loans', color: '#7b6a94', updatedAt: 1 }, { id: 'home', name: 'Home', color: '#111111', updatedAt: 1 }],
+    partners: [{ id: 'telco', name: 'Telco', color: '#4f7a86', updatedAt: 1 }],
+    tasks: [item({ id: 'a', project: 'mobile-loans' }), item({ id: 'b', project: 'mobile-loans', deps: ['a'] }), item({ id: 'c', project: 'home' })],
+  };
+
+  it('makes a new product from the project, moves its items and removes only the project', () => {
+    const { snap: next, deleted } = convertProject(snap, 'mobile-loans', { kind: 'product', product: 'new:Mobile loans' }, 'bank', 50);
+    expect(next.products).toEqual([{ id: 'mobile-loans', name: 'Mobile loans', color: '#7b6a94', updatedAt: 50 }]);
+    expect(next.projects.map((p) => p.id)).toEqual(['home']);
+    expect(next.tasks.map((t) => [t.id, t.project, t.product ?? '', t.updatedAt])).toEqual([['a', '', 'mobile-loans', 50], ['b', '', 'mobile-loans', 50], ['c', 'home', '', 1]]);
+    expect(next.tasks[1].deps).toEqual(['a']); // nothing else about the items changes
+    expect(deleted).toEqual({ 'project:bank:mobile-loans': 50 });
+  });
+
+  it('makes a product with an existing partner, and their pair', () => {
+    const { snap: next } = convertProject(snap, 'mobile-loans', { kind: 'pair', product: 'new:Loans', partner: 'telco' }, 'bank', 50);
+    expect(next.products.map((p) => p.id)).toEqual(['loans']);
+    expect(next.pairs.map((p) => p.id)).toEqual(['loans+telco']);
+    expect(next.tasks[0]).toMatchObject({ project: '', product: 'loans', partner: 'telco' });
+  });
+
+  it('makes a partner, and never clashes with an existing id', () => {
+    const { snap: next } = convertProject(snap, 'home', { kind: 'partner', partner: 'new:Telco!' }, 'bank', 50);
+    expect(next.partners.map((p) => [p.id, p.name])).toEqual([['telco', 'Telco'], ['telco-2', 'Telco!']]);
+    expect(next.tasks[2]).toMatchObject({ project: '', partner: 'telco-2' });
+  });
+
+  it('uses an existing one named alike rather than making another', () => {
+    const { snap: next } = convertProject(snap, 'home', { kind: 'partner', partner: 'new: telco ' }, 'bank', 50);
+    expect(next.partners.map((p) => p.id)).toEqual(['telco']);
+    expect(next.tasks[2]).toMatchObject({ partner: 'telco' });
+  });
+
+  it('does nothing for a project that is gone', () => {
+    expect(convertProject(snap, 'nope', { kind: 'product', product: 'new:X' }, 'bank', 50)).toEqual({ snap, deleted: {} });
+  });
+});
+
+describe('sortProjects and sortSummary', () => {
+  const snap = {
+    ...emptySnapshot(),
+    projects: [
+      { id: 'cards', name: 'Cards', color: '#111111', updatedAt: 1 },
+      { id: 'loans-mtn', name: 'Loans MTN', color: '#222222', updatedAt: 1 },
+      { id: 'loans-airtel', name: 'Loans Airtel', color: '#333333', updatedAt: 1 },
+      { id: 'home', name: 'Home', color: '#444444', updatedAt: 1 },
+    ],
+    tasks: [
+      item({ id: 'a', project: 'loans-mtn' }),
+      item({ id: 'b', project: 'loans-airtel' }),
+      item({ id: 'c', project: 'home' }),
+      item({ id: 'd', project: 'cards' }),
+    ],
+  };
+
+  it('shares a product named alike across projects, and leaves the rest alone', () => {
+    const { snap: next, deleted } = sortProjects(
+      snap,
+      {
+        'loans-mtn': { kind: 'pair', product: 'new:Loans', partner: 'new:MTN' },
+        'loans-airtel': { kind: 'pair', product: 'new:loans', partner: 'new:Airtel' },
+        cards: { kind: 'product', product: 'new:Cards' },
+      },
+      'bank',
+      50,
+    );
+    expect(next.products.map((p) => p.id)).toEqual(['cards', 'loans']);
+    expect(next.partners.map((p) => p.id)).toEqual(['mtn', 'airtel']);
+    expect(next.pairs.map((p) => p.id)).toEqual(['loans+mtn', 'loans+airtel']);
+    expect(next.projects.map((p) => p.id)).toEqual(['home']);
+    expect(Object.keys(deleted).sort()).toEqual(['project:bank:cards', 'project:bank:loans-airtel', 'project:bank:loans-mtn']);
+    expect(sortSummary(snap, next)).toEqual({
+      newProducts: ['Cards', 'Loans'],
+      newPartners: ['MTN', 'Airtel'],
+      newPairs: ['Loans · MTN', 'Loans · Airtel'],
+      projectsSorted: 3,
+      projectsLeft: 1,
+      itemsMoved: 3,
+      itemsBefore: 4,
+      itemsAfter: 4,
+    });
+  });
+
+  it('ignores choices for projects that do not exist, or inherited names', () => {
+    const choices = Object.create({ cards: { kind: 'product', product: 'new:X' } }) as Record<string, never>;
+    expect(sortProjects(snap, { ...choices, nope: { kind: 'product', product: 'new:Y' } }, 'bank', 50)).toEqual({ snap, deleted: {} });
+  });
+
+  it('uniqueId slugs a name and avoids the ids taken', () => {
+    expect(uniqueId('Mobile Loans!', [])).toBe('mobile-loans');
+    expect(uniqueId('Mobile Loans', ['mobile-loans', 'mobile-loans-2'])).toBe('mobile-loans-3');
+    expect(uniqueId('!!!', [])).toBe('item');
   });
 });

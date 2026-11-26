@@ -120,3 +120,121 @@ export function withoutGroup(
     deleted,
   };
 }
+
+/** What a project becomes when sorted (Step 1b): a product, a partner, or a product with a partner. */
+export type ProjectTarget =
+  | { kind: 'product'; product: string }
+  | { kind: 'partner'; partner: string }
+  | { kind: 'pair'; product: string; partner: string };
+
+export function slugify(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'item';
+}
+
+/** A slug id unique in `taken`, from a name ('Mobile loans' → 'mobile-loans', then 'mobile-loans-2'). */
+export function uniqueId(name: string, taken: Iterable<string>): string {
+  const ids = new Set(taken);
+  const base = slugify(name);
+  if (!ids.has(base)) return base;
+  let i = 2;
+  while (ids.has(`${base}-${i}`)) i++;
+  return `${base}-${i}`;
+}
+
+/**
+ * A plain project turned into a product, a partner, or a product with a partner. `product` and
+ * `partner` name an existing one by id, or one by `new:<name>`: the existing one of that name
+ * (any case), else a new one with the project's colour. Its items move there (re-stamped), the
+ * pair is made if needed, and the project goes: nothing is deleted but the project itself.
+ */
+export function convertProject(
+  snap: WorkspaceSnapshot,
+  projectId: string,
+  target: ProjectTarget,
+  workspace: string,
+  now: number,
+): { snap: WorkspaceSnapshot; deleted: Record<string, number> } {
+  const project = snap.projects.find((p) => p.id === projectId);
+  if (!project) return { snap, deleted: {} };
+  let { products, partners, pairs } = snap;
+  const resolve = (ref: string, list: WorkspaceSnapshot['products']): { id: string; list: WorkspaceSnapshot['products'] } => {
+    if (!ref.startsWith('new:')) return { id: ref, list };
+    const name = ref.slice(4).trim() || project.name;
+    const same = list.find((g) => g.name.trim().toLowerCase() === name.toLowerCase());
+    if (same) return { id: same.id, list };
+    const id = uniqueId(name, list.map((g) => g.id));
+    return { id, list: [...list, { id, name, color: project.color, updatedAt: now }] };
+  };
+  let product = '';
+  let partner = '';
+  if (target.kind !== 'partner') ({ id: product, list: products } = resolve(target.product, products));
+  if (target.kind !== 'product') ({ id: partner, list: partners } = resolve(target.partner, partners));
+  if (product && partner && !pairs.some((p) => p.id === pairId(product, partner))) {
+    pairs = [...pairs, { id: pairId(product, partner), product, partner, updatedAt: now }];
+  }
+  const tasks = snap.tasks.map((t) => {
+    if (t.project !== projectId) return t;
+    const next: Task = { ...t, project: '', updatedAt: now };
+    delete next.product;
+    delete next.partner;
+    if (product) next.product = product;
+    if (partner) next.partner = partner;
+    return next;
+  });
+  return {
+    snap: { ...snap, projects: snap.projects.filter((p) => p.id !== projectId), products, partners, pairs, tasks },
+    deleted: { [`project:${workspace}:${projectId}`]: now },
+  };
+}
+
+/**
+ * Several projects sorted at once (the Step 1b sorting tool): each one in `choices` is converted;
+ * projects left out stay plain projects. Products or partners named alike are made once and shared.
+ */
+export function sortProjects(
+  snap: WorkspaceSnapshot,
+  choices: Record<string, ProjectTarget>,
+  workspace: string,
+  now: number,
+): { snap: WorkspaceSnapshot; deleted: Record<string, number> } {
+  let next = snap;
+  let deleted: Record<string, number> = {};
+  for (const project of snap.projects) {
+    const target = Object.hasOwn(choices, project.id) ? choices[project.id] : undefined;
+    if (!target) continue;
+    const step = convertProject(next, project.id, target, workspace, now);
+    next = step.snap;
+    deleted = { ...deleted, ...step.deleted };
+  }
+  return { snap: next, deleted };
+}
+
+export interface SortSummary {
+  /** Names of the products, partners and pairs ('Loans · Telco') the sort makes. */
+  newProducts: string[];
+  newPartners: string[];
+  newPairs: string[];
+  projectsSorted: number;
+  projectsLeft: number;
+  itemsMoved: number;
+  /** Items before and after: must be equal, or nothing is applied. */
+  itemsBefore: number;
+  itemsAfter: number;
+}
+
+/** What a sort does, from the snapshots before and after (the dry run, and the check after). */
+export function sortSummary(before: WorkspaceSnapshot, after: WorkspaceSnapshot): SortSummary {
+  const added = <T extends { id: string }>(a: T[], b: T[]) => b.filter((x) => !a.some((y) => y.id === x.id));
+  const name = (list: { id: string; name: string }[], id: string) => list.find((g) => g.id === id)?.name ?? id;
+  const homes = new Map(before.tasks.map((t) => [t.id, homeValue(t)]));
+  return {
+    newProducts: added(before.products, after.products).map((p) => p.name),
+    newPartners: added(before.partners, after.partners).map((p) => p.name),
+    newPairs: added(before.pairs, after.pairs).map((p) => `${name(after.products, p.product)} · ${name(after.partners, p.partner)}`),
+    projectsSorted: before.projects.length - after.projects.length,
+    projectsLeft: after.projects.length,
+    itemsMoved: after.tasks.filter((t) => homes.has(t.id) && homes.get(t.id) !== homeValue(t)).length,
+    itemsBefore: before.tasks.length,
+    itemsAfter: after.tasks.length,
+  };
+}

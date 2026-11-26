@@ -9,6 +9,7 @@ import { SettingsDialog } from './components/SettingsDialog';
 import { Dashboard } from './screens/Dashboard';
 import { Tasks } from './screens/Tasks';
 import { Timeline } from './screens/Timeline';
+import { SortProjects } from './screens/SortProjects';
 import { useUiStore } from './store/uiStore';
 import { useTaskStore } from './store/taskStore';
 import { useReminders } from './lib/useReminders';
@@ -87,6 +88,7 @@ export default function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/tasks" element={<Tasks />} />
               <Route path="/timeline" element={<Timeline />} />
+              <Route path="/sort" element={<SortProjects />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </div>

@@ -59,7 +59,12 @@ export function Header() {
   } else if (screen === 'timeline') {
     kicker = 'Timeline';
     title = 'Next two weeks';
+  } else if (screen === 'sort') {
+    kicker = 'Products and partners';
+    title = 'Sort projects';
   }
+  // The sorting tool works on whole projects, so the item filters and search don't apply there.
+  const tool = screen === 'sort';
 
   const filtered = visibleTasks(tasks, store, f);
   const open = withoutDone(filtered);
@@ -93,15 +98,17 @@ export function Header() {
           <div className={s.bellSlot}>
             <RemindersBell />
           </div>
-          <div className={s.search}>
-            <span className={s.glyph}>/</span>
-            <input
-              ref={searchRef}
-              placeholder="Search tasks"
-              value={f.search}
-              onChange={(e) => f.setSearch(e.target.value)}
-            />
-          </div>
+          {!tool && (
+            <div className={s.search}>
+              <span className={s.glyph}>/</span>
+              <input
+                ref={searchRef}
+                placeholder="Search tasks"
+                value={f.search}
+                onChange={(e) => f.setSearch(e.target.value)}
+              />
+            </div>
+          )}
           {screen === 'dashboard' && (
             <div className={s.viewSwitch}>
               {(['focus', 'portfolio'] as const).map((v) => (
@@ -133,54 +140,56 @@ export function Header() {
         </div>
       </div>
 
-      <div className={s.row2}>
-        {project && (
-          <button type="button" className={`${s.chip} ${s.active}`} onClick={f.clearProject}>
-            × {project.name}
-          </button>
-        )}
-        <button
-          type="button"
-          className={`${s.chip} ${!f.priority ? s.active : ''}`}
-          onClick={() => f.setPriority(null)}
-        >
-          All priorities
-        </button>
-        {PRIORITIES.map((p) => (
+      {!tool && (
+        <div className={s.row2}>
+          {project && (
+            <button type="button" className={`${s.chip} ${s.active}`} onClick={f.clearProject}>
+              × {project.name}
+            </button>
+          )}
           <button
-            key={p.id}
             type="button"
-            className={`${s.chip} ${f.priority === p.id ? s.active : ''}`}
-            onClick={() => f.setPriority(p.id)}
+            className={`${s.chip} ${!f.priority ? s.active : ''}`}
+            onClick={() => f.setPriority(null)}
           >
-            {p.label}
+            All priorities
           </button>
-        ))}
-        <button
-          type="button"
-          className={`${s.chip} ${!f.hideDone ? s.active : ''}`}
-          onClick={() => f.setHideDone(!f.hideDone)}
-        >
-          {f.hideDone ? 'Hiding done' : 'Showing done'}
-        </button>
-        {screen !== 'dashboard' && (
-          <select
-            className={`${s.chip} ${f.type ? s.active : ''}`}
-            value={f.type ?? ''}
-            onChange={(e) => f.setType((e.target.value || null) as typeof f.type)}
-            aria-label="Item type"
+          {PRIORITIES.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className={`${s.chip} ${f.priority === p.id ? s.active : ''}`}
+              onClick={() => f.setPriority(p.id)}
+            >
+              {p.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            className={`${s.chip} ${!f.hideDone ? s.active : ''}`}
+            onClick={() => f.setHideDone(!f.hideDone)}
           >
-            <option value="">All types</option>
-            {TYPE_IDS.map((t) => (
-              <option key={t} value={t}>
-                {pluralLabel(t)}
-              </option>
-            ))}
-          </select>
-        )}
-        <div className={s.chipSpacer} />
-        <span className={s.resultLine}>{resultLine}</span>
-      </div>
+            {f.hideDone ? 'Hiding done' : 'Showing done'}
+          </button>
+          {screen !== 'dashboard' && (
+            <select
+              className={`${s.chip} ${f.type ? s.active : ''}`}
+              value={f.type ?? ''}
+              onChange={(e) => f.setType((e.target.value || null) as typeof f.type)}
+              aria-label="Item type"
+            >
+              <option value="">All types</option>
+              {TYPE_IDS.map((t) => (
+                <option key={t} value={t}>
+                  {pluralLabel(t)}
+                </option>
+              ))}
+            </select>
+          )}
+          <div className={s.chipSpacer} />
+          <span className={s.resultLine}>{resultLine}</span>
+        </div>
+      )}
     </header>
   );
 }

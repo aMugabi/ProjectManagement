@@ -11,6 +11,7 @@ import { rowsToDocument, summariseDocument } from './mapping';
 import { readRows } from './rows';
 import { syncDocument } from './sync';
 import { NOW, documentWithCatalogue, task } from './testing/document';
+import { sortProjects } from '../../../src/lib/items';
 
 const OWNER_URL = process.env.TEST_DB_OWNER_URL;
 const APP_URL = process.env.TEST_DB_APP_URL;
@@ -117,5 +118,35 @@ describe.skipIf(!OWNER_URL || !APP_URL)('products, partners and item types on Po
     const pair = await owner.query("select deleted_at is not null deleted from product_partners where owner_id = $1 and client_id = 'savings+bureau'", [userId]);
     expect(pair.rows).toEqual([{ deleted: true }]);
     expect(summariseDocument(reply, NOW + 4000)).toEqual(summariseDocument(rowsToDocument(await read(), 'default', NOW + 4000), NOW + 4000));
+  });
+
+  it('applies the sorting tool through sync: the project goes, its items move with their links', async () => {
+    const now = NOW + 5000;
+    const upload = rowsToDocument(await read(), 'default', now);
+    const work = upload.workspaceData.work;
+    const sorted = sortProjects(work, { 'client-x': { kind: 'pair', product: 'new:Client X', partner: 'new:Acme' } }, 'work', now);
+    upload.workspaceData.work = { ...work, ...sorted.snap };
+    Object.assign(upload.deleted, sorted.deleted);
+    const reply = await sync(upload, now);
+    const back = reply.workspaceData.work;
+    expect(back.projects).toEqual([]);
+    expect(back.pairs.map((p) => p.id)).toEqual(['client-x+acme']);
+    expect(back.tasks.map((t) => [t.id, t.project, t.product, t.partner, t.deps])).toEqual([
+      ['w2', '', 'client-x', 'acme', []],
+      ['w1', '', 'client-x', 'acme', ['w2']],
+    ]);
+    const rows = await owner.query(
+      `select i.client_id, i.project_id is null no_project, p.client_id product, q.client_id partner
+         from items i left join products p on p.id = i.product_id left join partners q on q.id = i.partner_id
+        where i.owner_id = $1 and i.client_id in ('w1', 'w2') order by i.client_id`,
+      [userId],
+    );
+    expect(rows.rows).toEqual([
+      { client_id: 'w1', no_project: true, product: 'client-x', partner: 'acme' },
+      { client_id: 'w2', no_project: true, product: 'client-x', partner: 'acme' },
+    ]);
+    const project = await owner.query("select deleted_at is not null deleted from projects where owner_id = $1 and client_id = 'client-x'", [userId]);
+    expect(project.rows).toEqual([{ deleted: true }]); // kept, marked deleted
+    expect(summariseDocument(reply, now)).toEqual(summariseDocument(rowsToDocument(await read(), 'default', now), now));
   });
 });

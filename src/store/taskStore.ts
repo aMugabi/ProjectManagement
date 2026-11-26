@@ -8,7 +8,7 @@ import { CLOUD_ENABLED } from '../lib/cloud';
 import { createCloudStorage, onRemoteState } from '../lib/cloudStorage';
 import { STORE_KEY } from '../lib/deviceData';
 import { wouldCreateCycle } from '../lib/selectors';
-import { parseHome, withDetail, withHome, withoutGroup, withType, type HomeValue } from '../lib/items';
+import { parseHome, sortProjects, uniqueId, withDetail, withHome, withoutGroup, withType, type HomeValue, type ProjectTarget } from '../lib/items';
 import { completeStatus, firstStatus, isDone, statusForPhase, typeOf, type Phase } from '../shared/itemTypes';
 
 const PROJECT_COLORS = [
@@ -23,19 +23,6 @@ const PROJECT_COLORS = [
   '#6b7a4f',
   '#4b6b94',
 ];
-
-function slugify(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'item';
-}
-
-function uniqueId(name: string, existingIds: Iterable<string>): string {
-  const ids = new Set(existingIds);
-  const base = slugify(name);
-  if (!ids.has(base)) return base;
-  let i = 2;
-  while (ids.has(`${base}-${i}`)) i++;
-  return `${base}-${i}`;
-}
 
 function nextProjectColor(existing: Project[]): string {
   const used = new Set(existing.map((p) => p.color));
@@ -83,6 +70,8 @@ interface TaskStore extends SyncedState {
   renameGroup: (kind: GroupKind, id: string, name: string) => void;
   /** A project goes with its tasks; a product or partner goes with its pairs, and its items stay. */
   deleteGroup: (kind: GroupKind, id: string) => void;
+  /** Turns projects of the active workspace into products, partners or pairs (the sorting tool). */
+  sortProjects: (choices: Record<string, ProjectTarget>) => void;
   /** Moves an item to a plain project, a product, a partner, a pair (made if new) or nothing. */
   setHome: (id: string, home: HomeValue) => void;
   setType: (id: string, type: ItemType) => void;
@@ -243,6 +232,12 @@ export const useTaskStore = create<TaskStore>()(
           return { ...snap, deleted: { ...s.deleted, ...deleted } };
         });
       },
+
+      sortProjects: (choices) =>
+        set((s) => {
+          const { snap, deleted } = sortProjects(activeSnapshot(s), choices, s.activeWorkspaceId, Date.now());
+          return { ...snap, deleted: { ...s.deleted, ...deleted } };
+        }),
 
       setHome: (id, home) =>
         set((s) => {

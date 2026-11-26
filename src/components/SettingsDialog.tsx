@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { CLOUD_ENABLED } from '../lib/cloud';
@@ -229,6 +230,7 @@ function SettingsPanel({ close }: { close: () => void }) {
   const reminders = useTaskStore((st) => st.reminders);
   const updateReminders = useTaskStore((st) => st.updateReminders);
   const [permission, setPermission] = useState<PermissionState>(notificationPermission);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -339,6 +341,26 @@ function SettingsPanel({ close }: { close: () => void }) {
               cloud version to get push notifications when it's closed.
             </p>
           )}
+        </section>
+
+        <section className={s.section}>
+          <div className={s.sectionLabel}>Projects</div>
+          <div className={s.row}>
+            <span>
+              Sort projects into products and partners
+              <small>Mark each project as a product, a partner, both or neither, see a dry run, then apply it</small>
+            </span>
+            <button
+              type="button"
+              className={s.buttonSecondary}
+              onClick={() => {
+                close();
+                navigate('/sort');
+              }}
+            >
+              Open
+            </button>
+          </div>
         </section>
 
         {CLOUD_ENABLED && (
