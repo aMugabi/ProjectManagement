@@ -65,8 +65,10 @@ export class FakeCloud {
 
     if (url.pathname === '/api/login' && method === 'DELETE') {
       this.signOuts.push(url.searchParams.get('all') === '1' ? 'all' : 'this');
-      if (url.searchParams.get('all') === '1') this.sessions.clear();
-      else this.sessions.delete(token);
+      if (url.searchParams.get('all') === '1') {
+        this.sessions.clear();
+        this.subs.clear();
+      } else this.sessions.delete(token);
       return this.json(route, 200, { ok: true });
     }
 

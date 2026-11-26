@@ -2,6 +2,8 @@
 // checks it against a salted scrypt hash (rate-limited) and returns a random session token. Only
 // that token is kept here — it expires, can be revoked from Settings, and isn't password-equivalent.
 // Local-only builds (GitHub Pages, `npm run dev`) don't use any of this; see lib/cloud.ts.
+import { clearDeviceData, hasUnsyncedEdits } from './deviceData';
+
 const TOKEN_KEY = 'ledger-session';
 /** Pre-session builds stored the password hash itself; remove it so it doesn't linger. */
 const LEGACY_TOKEN_KEY = 'ledger-auth-token';
@@ -65,13 +67,26 @@ export async function login(password: string): Promise<LoginResult> {
   }
 }
 
-/** Called when any /api request answers 401: the session expired or was revoked elsewhere. */
+/**
+ * Called when any /api request answers 401: the session expired or was revoked elsewhere (for
+ * example "Sign out → All devices" after losing a phone). If everything here is already in the
+ * cloud, this browser's copy is deleted, since it costs nothing; edits not yet uploaded are kept
+ * until the next sign-in uploads them.
+ */
 export function handleUnauthorized() {
-  if (authToken) setToken(null);
+  if (!authToken) return;
+  setToken(null);
+  if (!hasUnsyncedEdits()) {
+    clearDeviceData();
+    window.location.reload();
+  }
 }
 
-/** Signs out this device, or every device with `everywhere`. Local data stays in this browser. */
-export async function signOut(everywhere = false): Promise<void> {
+/**
+ * Ends the session on the server: this device's, or every device's with `everywhere`. Use
+ * lib/signOut.ts, which also uploads unsynced edits and clears this browser's copy.
+ */
+export async function endSession(everywhere = false): Promise<void> {
   const token = authToken;
   if (token) {
     try {

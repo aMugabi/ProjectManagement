@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { CLOUD_ENABLED } from '../lib/cloud';
-import { signOut } from '../lib/auth';
+import { signOut } from '../lib/signOut';
 import { notificationPermission, requestNotificationPermission, type PermissionState } from '../lib/notifications';
 import { disablePush, enablePush, pushStatus, sendTestPush, type PushStatus } from '../lib/push';
 import { sendTestEmail } from '../lib/email';
@@ -164,6 +164,60 @@ function EmailDigestSettings({
   );
 }
 
+/** Cloud builds only. Signing out removes Ledger's data from this browser (it stays in the cloud). */
+function SignOutSettings() {
+  const [busy, setBusy] = useState(false);
+  // Set when edits couldn't be uploaded: which sign-out (all devices or not) is waiting for a yes.
+  const [unsynced, setUnsynced] = useState<{ everywhere: boolean } | null>(null);
+
+  async function run(everywhere: boolean, discardUnsynced = false) {
+    setBusy(true);
+    if ((await signOut(everywhere, discardUnsynced)) === 'unsynced') {
+      setUnsynced({ everywhere });
+      setBusy(false);
+    }
+    // Otherwise the page reloads onto the sign-in screen.
+  }
+
+  if (unsynced) {
+    return (
+      <div className={s.row}>
+        <span>
+          Sign out anyway?
+          <small>
+            Some changes on this device haven't reached the cloud yet (are you offline?). Signing out now deletes them.
+          </small>
+        </span>
+        <span className={s.buttons}>
+          <button type="button" className={s.button} disabled={busy} onClick={() => void run(unsynced.everywhere, true)}>
+            Sign out anyway
+          </button>
+          <button type="button" className={s.buttonSecondary} disabled={busy} onClick={() => setUnsynced(null)}>
+            Cancel
+          </button>
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className={s.row}>
+      <span>
+        Sign out
+        <small>Removes Ledger's data from this browser; it stays saved in the cloud</small>
+      </span>
+      <span className={s.buttons}>
+        <button type="button" className={s.button} disabled={busy} onClick={() => void run(false)}>
+          This device
+        </button>
+        <button type="button" className={s.buttonSecondary} disabled={busy} onClick={() => void run(true)}>
+          All devices
+        </button>
+      </span>
+    </div>
+  );
+}
+
 export function SettingsDialog() {
   const open = useUiStore((st) => st.settingsOpen);
   const close = useUiStore((st) => st.closeSettings);
@@ -290,20 +344,7 @@ function SettingsPanel({ close }: { close: () => void }) {
         {CLOUD_ENABLED && (
           <section className={s.section}>
             <div className={s.sectionLabel}>Account</div>
-            <div className={s.row}>
-              <span>
-                Sign out
-                <small>Tasks stay saved in the cloud; this browser keeps its copy</small>
-              </span>
-              <span className={s.buttons}>
-                <button type="button" className={s.button} onClick={() => void signOut()}>
-                  This device
-                </button>
-                <button type="button" className={s.buttonSecondary} onClick={() => void signOut(true)}>
-                  All devices
-                </button>
-              </span>
-            </div>
+            <SignOutSettings />
           </section>
         )}
       </div>

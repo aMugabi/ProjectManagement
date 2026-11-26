@@ -6,6 +6,7 @@ import { advanceRecurrence } from '../shared/date';
 import { DEFAULT_REMINDERS, DEFAULT_WORKSPACE, normalizeState, ownEntry, STATE_VERSION, stripDeps, type SyncedState } from '../shared/state';
 import { CLOUD_ENABLED } from '../lib/cloud';
 import { createCloudStorage, onRemoteState } from '../lib/cloudStorage';
+import { STORE_KEY } from '../lib/deviceData';
 import { wouldCreateCycle } from '../lib/selectors';
 
 const PROJECT_COLORS = [
@@ -278,14 +279,18 @@ export const useTaskStore = create<TaskStore>()(
       updateReminders: (patch) => set((s) => ({ reminders: { ...s.reminders, ...patch, updatedAt: Date.now() } })),
     }),
     {
-      name: 'ledger-tasks-v2',
+      name: STORE_KEY,
       version: STATE_VERSION,
       storage: createCloudStorage(),
       // Older versions get stamps of 0 (older than any real edit), tombstones and default reminder settings.
       migrate: (persisted) => normalizeState(persisted) as unknown as TaskStore,
-      // Same-version data is normalised too, so settings added since it was saved (such as
-      // privateNotifications) get their defaults instead of reading as undefined.
-      merge: (persisted, current) => (persisted ? { ...current, ...normalizeState(persisted) } : current),
+      // Same-version data skips migrate, so reminder settings added since it was saved (such as
+      // privateNotifications) get their defaults here instead of reading as undefined.
+      merge: (persisted, current) => {
+        const saved = persisted as Partial<SyncedState> | undefined;
+        if (!saved) return current;
+        return { ...current, ...saved, reminders: { ...DEFAULT_REMINDERS, ...saved.reminders } };
+      },
     },
   ),
 );

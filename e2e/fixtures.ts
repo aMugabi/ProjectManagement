@@ -116,6 +116,8 @@ export const test = base.extend<{ consoleErrors: string[] }>({
         if (m.type() !== 'error') return;
         const text = m.text();
         if (/Failed to load resource|status of (401|429|500)|NetworkError|net::ERR_/i.test(text)) return;
+        // Firefox: a web font download cancelled by a page reload (NS_BINDING_ABORTED), e.g. signing out.
+        if (/downloadable font: download failed .*status=2152398850/.test(text)) return;
         errors.push(`console: ${text}`);
       });
       await use(errors);

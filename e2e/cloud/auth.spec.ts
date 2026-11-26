@@ -1,4 +1,4 @@
-import { expect, openSettings, seed, stored, task, test } from '../fixtures';
+import { expect, openSettings, savedState, seed, stored, task, test } from '../fixtures';
 import { FakeCloud, PASSWORD, SESSION } from '../fakeCloud';
 
 let cloud: FakeCloud;
@@ -7,7 +7,11 @@ test.beforeEach(async ({ context }) => {
   await cloud.install(context);
 });
 
-const unlock = (page: import('@playwright/test').Page) => page.getByRole('button', { name: 'Unlock' });
+type Page = import('@playwright/test').Page;
+const unlock = (page: Page) => page.getByRole('button', { name: 'Unlock' });
+/** Every Ledger key left in this browser's storage (null while the page is reloading, so polls retry). */
+const ledgerKeys = (page: Page) =>
+  page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('ledger-'))).catch(() => null);
 
 test.describe('cloud build: sign-in and sessions', () => {
   test('shows the sign-in screen and rejects a wrong password', async ({ page }) => {
@@ -52,11 +56,22 @@ test.describe('cloud build: sign-in and sessions', () => {
     expect(kept.legacy).toBeNull();
   });
 
-  test('locks again when the server rejects the saved session', async ({ page }) => {
+  test('locks again when the server rejects the saved session, deleting the copy when the cloud has it all', async ({ page }) => {
     await seed(page, stored(), { 'ledger-session': 'expired-token' });
     await page.goto('dashboard');
     await expect(unlock(page)).toBeVisible();
+    await expect.poll(() => ledgerKeys(page)).toEqual([]);
+  });
+
+  test('a rejected session keeps edits the cloud has not received yet', async ({ page }) => {
+    await seed(page, stored({ tasks: [task('mine', 'Not uploaded yet', 1)] }), {
+      'ledger-session': 'expired-token',
+      'ledger-sync-pending': '1',
+    });
+    await page.goto('dashboard');
+    await expect(unlock(page)).toBeVisible();
     expect(await page.evaluate(() => localStorage.getItem('ledger-session'))).toBeNull();
+    expect((await savedState(page)).state.tasks.map((t) => t.title)).toEqual(['Not uploaded yet']);
   });
 
   test('Sign out (this device) ends the session and returns to the sign-in screen', async ({ page }) => {
@@ -68,6 +83,44 @@ test.describe('cloud build: sign-in and sessions', () => {
     await expect(unlock(page)).toBeVisible();
     expect(cloud.signOuts).toEqual(['this']);
     expect(cloud.sessions.has(SESSION)).toBe(false);
+    // Nothing of Ledger's is left in this browser.
+    await expect.poll(() => ledgerKeys(page)).toEqual([]);
+  });
+
+  test('Sign out uploads unsynced edits first', async ({ page }) => {
+    cloud.state = stored();
+    await seed(page, stored({ tasks: [task('mine', 'Made offline', 1, { updatedAt: 99 })] }), {
+      'ledger-session': SESSION,
+      'ledger-sync-pending': '1',
+    });
+    cloud.down = true; // the edit can't be uploaded at start-up
+    await page.goto('dashboard');
+    await openSettings(page);
+    cloud.down = false;
+    await page.getByRole('button', { name: 'This device' }).click();
+    await expect(unlock(page)).toBeVisible();
+    expect(cloud.state!.state.tasks.map((t) => t.title)).toEqual(['Made offline']);
+    await expect.poll(() => ledgerKeys(page)).toEqual([]);
+  });
+
+  test('Sign out asks before deleting edits it cannot upload', async ({ page }) => {
+    cloud.state = stored();
+    await seed(page, stored({ tasks: [task('mine', 'Made offline', 1)] }), {
+      'ledger-session': SESSION,
+      'ledger-sync-pending': '1',
+    });
+    cloud.down = true;
+    await page.goto('dashboard');
+    await openSettings(page);
+    await page.getByRole('button', { name: 'This device' }).click();
+    await expect(page.getByText("Some changes on this device haven't reached the cloud yet")).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    expect((await savedState(page)).state.tasks.map((t) => t.title)).toEqual(['Made offline']);
+
+    await page.getByRole('button', { name: 'This device' }).click();
+    await page.getByRole('button', { name: 'Sign out anyway' }).click();
+    await expect(unlock(page)).toBeVisible();
+    await expect.poll(() => ledgerKeys(page)).toEqual([]);
   });
 
   test('Sign out on all devices ends every session', async ({ page }) => {
@@ -76,10 +129,13 @@ test.describe('cloud build: sign-in and sessions', () => {
     await seed(page, stored(), { 'ledger-session': SESSION });
     await page.goto('dashboard');
     await openSettings(page);
+    cloud.subs.set('https://push.example/lost-phone', { endpoint: 'https://push.example/lost-phone', keys: { p256dh: 'k', auth: 'a' } });
     await page.getByRole('button', { name: 'All devices' }).click();
     await expect(unlock(page)).toBeVisible();
     expect(cloud.signOuts).toEqual(['all']);
     expect(cloud.sessions.size).toBe(0);
+    expect(cloud.subs.size).toBe(0); // no device keeps receiving reminders
+    await expect.poll(() => ledgerKeys(page)).toEqual([]);
   });
 
   test('the cloud build does not show the local-only label', async ({ page }) => {

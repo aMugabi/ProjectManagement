@@ -3,9 +3,7 @@ import { getAuthToken, handleUnauthorized } from './auth';
 import { CLOUD_ENABLED } from './cloud';
 import { mergeStates } from '../shared/merge';
 import { normalizeState, STATE_VERSION, type StoredState, type SyncedState } from '../shared/state';
-
-/** Set while this browser has edits the cloud hasn't confirmed; survives reloads so offline edits get uploaded. */
-const PENDING_KEY = 'ledger-sync-pending';
+import { hasUnsyncedEdits, PENDING_KEY, STORE_KEY } from './deviceData';
 
 let syncTimer: ReturnType<typeof setTimeout> | undefined;
 /** Counts local edits, so a finished upload only clears the pending flag if nothing changed meanwhile. */
@@ -45,13 +43,7 @@ function setPending(pending: boolean) {
   }
 }
 
-function isPending(): boolean {
-  try {
-    return localStorage.getItem(PENDING_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
+const isPending = hasUnsyncedEdits;
 
 /** undefined = couldn't reach the cloud (keep working locally); null = the cloud has no copy yet. */
 async function fetchRemote(token: string): Promise<StoredState | null | undefined> {
@@ -99,6 +91,17 @@ async function push(name: string) {
   } finally {
     applying = false;
   }
+}
+
+/**
+ * Uploads any edits the cloud hasn't confirmed yet, now rather than after the usual short delay.
+ * Resolves to true when nothing is left unsynced (false when offline or the upload failed).
+ */
+export async function syncNow(): Promise<boolean> {
+  if (!isPending()) return true;
+  clearTimeout(syncTimer);
+  await push(STORE_KEY);
+  return !isPending();
 }
 
 function schedulePush(name: string, delay: number) {

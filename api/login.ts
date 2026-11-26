@@ -1,5 +1,5 @@
 import { Ratelimit } from '@upstash/ratelimit';
-import { LOGIN_ALL_PREFIX, LOGIN_IP_PREFIX } from './_lib/keys.js';
+import { LOGIN_ALL_PREFIX, LOGIN_IP_PREFIX, PUSH_SUBS_KEY } from './_lib/keys.js';
 import { isLegacyHash, verifyPassword } from './_lib/password.js';
 import { bearerToken, createSession, kv, requireSession, revokeAllSessions, revokeSession } from './_lib/session.js';
 
@@ -15,7 +15,8 @@ function clientIp(req: any): string {
 
 /**
  * POST { password } → { token } — a random session token, not the password or its hash.
- * DELETE → signs this session out; DELETE ?all=1 signs out every device.
+ * DELETE → signs this session out; DELETE ?all=1 signs out every device and drops every push
+ * subscription.
  */
 export default async function handler(req: any, res: any) {
   if (req.method === 'POST') {
@@ -50,8 +51,11 @@ export default async function handler(req: any, res: any) {
   if (req.method === 'DELETE') {
     if (!(await requireSession(req, res))) return;
     const url = new URL(req.url ?? '/', 'http://localhost');
-    if (url.searchParams.get('all') === '1') await revokeAllSessions();
-    else await revokeSession(bearerToken(req));
+    if (url.searchParams.get('all') === '1') {
+      // Every device is signed out, so none should keep receiving reminders (e.g. a lost phone).
+      await revokeAllSessions();
+      await kv.del(PUSH_SUBS_KEY);
+    } else await revokeSession(bearerToken(req));
     res.status(200).json({ ok: true });
     return;
   }

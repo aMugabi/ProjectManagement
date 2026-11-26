@@ -60,7 +60,13 @@ devices. To enable it on a Vercel deployment:
 Signing in sends the password once to `/api/login`, which is rate-limited (5 attempts per
 15 minutes per IP, 50 per hour overall) and returns a random session token. Only that token
 is kept in the browser; sessions last 30 days from last use and can be signed out on every
-device from Settings. A legacy bare SHA-256 `AUTH_PASSWORD_HASH` still works (with a warning
+device from Settings.
+
+Signing out uploads any unsynced edits, turns off push for that device, ends the session and then
+deletes Ledger's data from that browser (it stays in the cloud). If the edits can't be uploaded
+(offline), Ledger asks before deleting them. *All devices* also drops every push subscription, and
+each other device deletes its copy the next time it opens, unless it holds edits the cloud hasn't
+received yet; those are kept until the next sign-in uploads them. A legacy bare SHA-256 `AUTH_PASSWORD_HASH` still works (with a warning
 in the function logs) until you replace it.
 
 Sync merges task by task (newest edit wins, deletions are remembered), so edits made
