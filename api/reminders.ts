@@ -2,10 +2,9 @@ import { Receiver } from '@upstash/qstash';
 import { timingSafeEqual } from 'node:crypto';
 import { digestEmail } from '../src/shared/digestEmail.js';
 import { computeReminders, nowInZone, outsideText } from '../src/shared/reminders.js';
-import { normalizeState, type StoredState } from '../src/shared/state.js';
+import { normalizeState } from '../src/shared/state.js';
 import { emailConfigured, sendEmail } from './_lib/email.js';
-import { SENT_PREFIX, STATE_KEY } from './_lib/keys.js';
-import { kv } from './_lib/session.js';
+import { claimReminder, readDocument, releaseReminder, reminderUsers } from './_lib/store.js';
 import { sendPush } from './_lib/webpush.js';
 
 /** Each reminder is pushed at most once; markers outlive the reminder's day. */
@@ -45,38 +44,44 @@ export async function POST(request: Request): Promise<Response> {
   const rawBody = await request.text();
   if (!(await authorised(request, rawBody))) return Response.json({ error: 'unauthorized' }, { status: 401 });
 
-  const stored = await kv.get<StoredState>(STATE_KEY);
-  if (!stored) return Response.json({ due: 0, sent: 0, emailed: 0 });
-
-  const state = normalizeState(stored.state);
-  const now = nowInZone(state.reminders.timezone);
-  const due = computeReminders(state, now);
+  const origin = new URL(request.url).origin;
+  let due = 0;
   let sent = 0;
-  for (const r of due) {
-    // SET NX claims the reminder, so overlapping or repeated runs never push it twice.
-    const claimed = await kv.set(SENT_PREFIX + r.key, 1, { nx: true, ex: SENT_TTL_SECONDS });
-    if (claimed !== 'OK') continue;
-    // The payload is encrypted to each device, but it is displayed on lock screens: private
-    // notifications leave the names out.
-    const { title, body } = outsideText(r, state.reminders.privateNotifications);
-    await sendPush({ title, body, tag: r.key, path: r.url });
-    sent++;
-  }
-
-  // The morning email digest (if turned on). Claimed like a push, but released if sending fails
-  // so the next run retries instead of silently skipping the day. A failure answers 502, so the
-  // timer's run fails and GitHub emails the owner instead of the digest just not arriving.
   let emailed = 0;
-  const email = emailConfigured() ? digestEmail(state, now, new URL(request.url).origin) : null;
-  if (email && (await kv.set(SENT_PREFIX + email.key, 1, { nx: true, ex: SENT_TTL_SECONDS })) === 'OK') {
-    try {
-      await sendEmail(email);
-      emailed = 1;
-    } catch (e) {
-      await kv.del(SENT_PREFIX + email.key);
-      console.error('Digest email failed:', (e as Error).message);
-      return Response.json({ due: due.length, sent, emailed, error: 'digest email failed' }, { status: 502 });
+  let emailFailed = false;
+  for (const userId of await reminderUsers()) {
+    const stored = await readDocument(userId);
+    if (!stored) continue;
+    const state = normalizeState(stored.state);
+    const now = nowInZone(state.reminders.timezone);
+    const reminders = computeReminders(state, now);
+    due += reminders.length;
+    for (const r of reminders) {
+      // Claimed first, so overlapping or repeated runs never push it twice.
+      if (!(await claimReminder(userId, r.key, SENT_TTL_SECONDS))) continue;
+      // The payload is encrypted to each device, but it is displayed on lock screens: private
+      // notifications leave the names out.
+      const { title, body } = outsideText(r, state.reminders.privateNotifications);
+      await sendPush({ title, body, tag: r.key, path: r.url }, userId);
+      sent++;
+    }
+
+    // The morning email digest (if turned on). Claimed like a push, but released if sending fails
+    // so the next run retries instead of silently skipping the day.
+    const email = emailConfigured() ? digestEmail(state, now, origin) : null;
+    if (email && (await claimReminder(userId, email.key, SENT_TTL_SECONDS))) {
+      try {
+        await sendEmail(email);
+        emailed++;
+      } catch (e) {
+        await releaseReminder(userId, email.key);
+        console.error('Digest email failed:', (e as Error).message);
+        emailFailed = true;
+      }
     }
   }
-  return Response.json({ due: due.length, sent, emailed });
+  // A failed email answers 502 (after every user's reminders went out), so the timer's run fails
+  // and GitHub emails the owner instead of the digest just not arriving.
+  if (emailFailed) return Response.json({ due, sent, emailed, error: 'digest email failed' }, { status: 502 });
+  return Response.json({ due, sent, emailed });
 }

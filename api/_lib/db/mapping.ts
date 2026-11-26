@@ -350,10 +350,14 @@ export function summariseDocument(raw: unknown, now = Date.now()): { workspaces:
     for (const p of projects) live.add(`project:${w.id}:${p.id}`);
     for (const t of tasks) live.add(`task:${w.id}:${t.id}`);
   }
-  const deletions = Object.entries(state.deleted).filter(([key]) => !live.has(key));
+  // Deletions in workspaces the document doesn't have can't be filed anywhere: the import notes
+  // and drops them, so they don't count here either.
+  const workspaces = new Set(state.workspaces.map((w) => w.id));
+  const filed = (key: string) => key.startsWith('workspace:') || workspaces.has(key.split(':')[1]);
+  const deletions = Object.entries(state.deleted).filter(([key]) => !live.has(key) && filed(key));
 
   const lines: string[] = [];
-  const workspaces = state.workspaces.map((w) => {
+  const perWorkspace = state.workspaces.map((w) => {
     const { projects = [], tasks = [] } = ownEntry(data, w.id) ?? {};
     lines.push(workspaceKey(w));
     for (const p of projects) lines.push(projectKey(w.id, p));
@@ -371,5 +375,5 @@ export function summariseDocument(raw: unknown, now = Date.now()): { workspaces:
   for (const [key, at] of deletions) lines.push(`d|${key}|${at}`);
   lines.push(remindersKey(state.reminders));
   lines.sort();
-  return { workspaces, checksum: createHash('sha256').update(lines.join('\n')).digest('hex') };
+  return { workspaces: perWorkspace, checksum: createHash('sha256').update(lines.join('\n')).digest('hex') };
 }

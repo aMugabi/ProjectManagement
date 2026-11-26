@@ -22,13 +22,10 @@ export async function createSession(): Promise<string> {
   return token;
 }
 
-/** Checks (and renews) the request's session; answers 401 and returns false if there isn't a valid one. */
-export async function requireSession(req: any, res: any): Promise<boolean> {
-  const token = bearerToken(req);
+/** Whether the token is a live session, renewing it if so. */
+export async function sessionValid(token: string): Promise<boolean> {
   // EXPIRE returns 1 only when the key exists, so this checks and renews in one call.
-  if (token && (await kv.expire(sessionKey(token), SESSION_TTL_SECONDS)) === 1) return true;
-  res.status(401).json({ error: 'unauthorized' });
-  return false;
+  return Boolean(token) && (await kv.expire(sessionKey(token), SESSION_TTL_SECONDS)) === 1;
 }
 
 export async function revokeSession(token: string): Promise<void> {

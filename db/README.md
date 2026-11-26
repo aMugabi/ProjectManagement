@@ -57,8 +57,16 @@ run them with the skill's `break-code.py` (the second inside the namespace above
 3. `DATABASE_OWNER_URL=<owner> npm run db:import -- --email you@example.org --from FILE --dry-run`:
    does everything, prints counts per workspace and the before/after checksums, rolls back.
 4. The same without `--dry-run`, with `DATABASE_URL=<app role>` (checks it again through the app's
-   policies) and `AUTH_PASSWORD_HASH` (carries the password over). One "baseline" change-log entry
-   per row marks where history starts. A second import for the same email is refused.
+   policies). Sign-in on Postgres requires MFA, so the import also needs `AUTH_PASSWORD_HASH`,
+   `AUTH_TOTP_SECRET` and `AUTH_RECOVERY_CODES` (the values set in Vercel today) and
+   `MFA_ENCRYPTION_KEY` (32 random bytes, base64: `openssl rand -base64 32`), which encrypts the
+   authenticator key in the database. One "baseline" change-log entry per row marks where history
+   starts. A second import for the same email is refused.
+5. In Vercel (Production), set `DATABASE_URL` (the app role's connection string) and the same
+   `MFA_ENCRYPTION_KEY`, and redeploy. With `DATABASE_URL` set, every /api function uses Postgres
+   (`api/_lib/store.ts`): sign-in asks for email, password and code; sessions, push subscriptions
+   and reminder claims live in Postgres too. Every device signs in again once (old sessions were
+   in Redis). Unset `DATABASE_URL` and redeploy to go back to Redis, which the move never changes.
 
 ## Setting up a real database (when the host is chosen)
 1. Create the database; run the migrations as its owner.

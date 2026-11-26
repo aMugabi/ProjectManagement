@@ -41,3 +41,10 @@ export async function withUser<T>(db: pg.Pool, userId: string, work: (client: pg
     client.release();
   }
 }
+
+/** Closes the app's pool (for tests and scripts that end). */
+export async function endAppPool(): Promise<void> {
+  const p = pool;
+  pool = null;
+  await p?.end();
+}

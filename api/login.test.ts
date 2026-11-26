@@ -74,7 +74,7 @@ function turnOnMfa() {
 
 describe('/api/login without MFA set up', () => {
   it('says no code is needed, and signs in with the password alone', async () => {
-    expect(await call('GET')).toEqual({ status: 200, body: { mfa: false } });
+    expect(await call('GET')).toEqual({ status: 200, body: { mfa: false, email: false } });
     expect((await call('POST', { password: PASSWORD })).body.token).toMatch(/^token-/);
     expect(await call('POST', { password: 'wrong' })).toEqual({ status: 401, body: { error: 'incorrect password' } });
   });
@@ -84,7 +84,7 @@ describe('/api/login with MFA', () => {
   beforeEach(turnOnMfa);
 
   it('says a code is needed', async () => {
-    expect((await call('GET')).body).toEqual({ mfa: true });
+    expect((await call('GET')).body).toEqual({ mfa: true, email: false });
   });
 
   it('refuses the right password without a code, or with a wrong one, in the same words as a wrong password', async () => {

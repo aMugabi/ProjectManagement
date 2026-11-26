@@ -57,7 +57,7 @@ describe('POST /api/reminders', () => {
     const first = await (await call()).json();
     expect(first).toEqual({ due: 1, sent: 1, emailed: 0 }); // email digest is off by default
     // Private notifications are on by default: counts only, no task names on the lock screen.
-    expect(sendPush).toHaveBeenCalledWith({ title: 'Ledger · 1 due today', body: 'Open Ledger to see them.', tag: `digest:${now.date}`, path: 'dashboard' });
+    expect(sendPush).toHaveBeenCalledWith({ title: 'Ledger · 1 due today', body: 'Open Ledger to see them.', tag: `digest:${now.date}`, path: 'dashboard' }, 'owner');
 
     const second = await (await call()).json();
     expect(second).toEqual({ due: 1, sent: 0, emailed: 0 });

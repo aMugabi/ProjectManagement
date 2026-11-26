@@ -9,6 +9,14 @@ import type { Queryable } from './client.js';
 import { documentToRows, rowsToDocument, summariseDocument, type ImportNote } from './mapping.js';
 import { insertRows, LOGGED_TABLES, readRows, writeBaseline } from './rows.js';
 import { normalizeState } from '../../../src/shared/state.js';
+import { seal } from '../auth/secretBox.js';
+
+/** The authenticator key and recovery-code hashes to carry over (sign-in on Postgres requires them). */
+export interface MfaToCarry {
+  totpSecret: string;
+  recoveryHashes: string[];
+  key: Buffer;
+}
 
 export type Summary = ReturnType<typeof summariseDocument>;
 
@@ -28,7 +36,7 @@ const sameSummary = (a: Summary, b: Summary) => JSON.stringify(a) === JSON.strin
 
 export async function importDocument(
   owner: Queryable,
-  input: { email: string; passwordHash?: string; document: unknown; dryRun: boolean; now?: number },
+  input: { email: string; passwordHash?: string; mfa?: MfaToCarry; document: unknown; dryRun: boolean; now?: number },
 ): Promise<ImportResult> {
   const now = input.now ?? Date.now();
   const email = input.email.trim().toLowerCase();
@@ -49,6 +57,11 @@ export async function importDocument(
         `insert into identities (user_id, provider, subject, secret_hash) values ($1, 'password', $2, $3)`,
         [userId, email, input.passwordHash],
       );
+    }
+    if (input.mfa) {
+      await owner.query('insert into mfa_factors (user_id, totp_secret_encrypted, recovery_code_hashes) values ($1, $2, $3)', [
+        userId, seal(input.mfa.totpSecret, input.mfa.key, userId), input.mfa.recoveryHashes,
+      ]);
     }
 
     const { rows, notes } = documentToRows(document, userId, randomUUID, now);

@@ -1,12 +1,4 @@
-import { Ratelimit } from '@upstash/ratelimit';
-import { LOGIN_ALL_PREFIX, LOGIN_IP_PREFIX, PUSH_SUBS_KEY } from './_lib/keys.js';
-import { checkSecondFactor, mfaConfigured } from './_lib/mfa.js';
-import { isLegacyHash, verifyPassword } from './_lib/password.js';
-import { bearerToken, createSession, kv, requireSession, revokeAllSessions, revokeSession } from './_lib/session.js';
-
-// 5 attempts per 15 minutes per IP, plus a global cap so rotating IPs can't brute-force either.
-const perIp = new Ratelimit({ redis: kv, limiter: Ratelimit.slidingWindow(5, '15 m'), prefix: LOGIN_IP_PREFIX });
-const global = new Ratelimit({ redis: kv, limiter: Ratelimit.slidingWindow(50, '1 h'), prefix: LOGIN_ALL_PREFIX });
+import { loginOptions, requireUser, signIn, signOut } from './_lib/store.js';
 
 function clientIp(req: any): string {
   const forwarded = req.headers?.['x-forwarded-for'];
@@ -15,58 +7,48 @@ function clientIp(req: any): string {
 }
 
 /**
- * GET → { mfa } — whether sign-in needs an authenticator or recovery code (so the form can ask).
- * POST { password, code? } → { token } — a random session token, not the password or its hash.
- *   With MFA on, a wrong password and a wrong code get the same answer, so neither is confirmed alone.
+ * GET → { mfa, email } — what the sign-in form must ask for: a code (authenticator or recovery),
+ *   and on Postgres an email address too.
+ * POST { email?, password, code? } → { token } — a random session token, not the password or its
+ *   hash. A wrong email, password or code all get the same answer, so none is confirmed alone.
+ *   Rate-limited: 5 attempts per 15 minutes per IP address, 50 an hour overall.
  * DELETE → signs this session out; DELETE ?all=1 signs out every device and drops every push
  * subscription.
  */
 export default async function handler(req: any, res: any) {
   if (req.method === 'GET') {
-    res.status(200).json({ mfa: mfaConfigured() });
+    res.status(200).json(loginOptions());
     return;
   }
 
   if (req.method === 'POST') {
-    const stored = process.env.AUTH_PASSWORD_HASH;
-    if (!stored) {
-      res.status(500).json({ error: 'AUTH_PASSWORD_HASH is not set' });
-      return;
-    }
-    const [ip, all] = await Promise.all([perIp.limit(clientIp(req)), global.limit('all')]);
-    if (!ip.success || !all.success) {
-      res.status(429).json({ error: 'too many attempts' });
-      return;
-    }
     let body: unknown = req.body;
     try {
       if (typeof body === 'string') body = JSON.parse(body);
     } catch {
       body = null;
     }
-    const { password, code } = (body ?? {}) as { password?: unknown; code?: unknown };
-    const mfa = mfaConfigured();
-    const passwordOk = typeof password === 'string' && Boolean(password) && verifyPassword(password, stored);
-    // The code is only checked (and so only used up) once the password is right.
-    if (!passwordOk || (mfa && !(await checkSecondFactor(code)))) {
-      res.status(401).json({ error: mfa ? 'incorrect password or code' : 'incorrect password' });
-      return;
+    const { email, password, code } = (body ?? {}) as { email?: unknown; password?: unknown; code?: unknown };
+    const result = await signIn({ email, password, code, ip: clientIp(req) });
+    if (result === 'not-configured') {
+      res.status(500).json({ error: 'AUTH_PASSWORD_HASH is not set' });
+    } else if (result === 'rate-limited') {
+      res.status(429).json({ error: 'too many attempts' });
+    } else if (result === 'incorrect') {
+      const options = loginOptions();
+      const error = options.email ? 'incorrect email, password or code' : options.mfa ? 'incorrect password or code' : 'incorrect password';
+      res.status(401).json({ error });
+    } else {
+      res.status(200).json({ token: result.token });
     }
-    if (isLegacyHash(stored)) {
-      console.warn('AUTH_PASSWORD_HASH is a legacy SHA-256 hash; replace it with `npm run hash-password` output.');
-    }
-    res.status(200).json({ token: await createSession() });
     return;
   }
 
   if (req.method === 'DELETE') {
-    if (!(await requireSession(req, res))) return;
+    const user = await requireUser(req, res);
+    if (!user) return;
     const url = new URL(req.url ?? '/', 'http://localhost');
-    if (url.searchParams.get('all') === '1') {
-      // Every device is signed out, so none should keep receiving reminders (e.g. a lost phone).
-      await revokeAllSessions();
-      await kv.del(PUSH_SUBS_KEY);
-    } else await revokeSession(bearerToken(req));
+    await signOut(req, user, url.searchParams.get('all') === '1');
     res.status(200).json({ ok: true });
     return;
   }

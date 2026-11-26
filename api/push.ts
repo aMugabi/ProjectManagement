@@ -1,5 +1,5 @@
-import { requireSession } from './_lib/session.js';
-import { isSubscription, removeSubscription, saveSubscription, sendPush, vapidPublicKey } from './_lib/webpush.js';
+import { removePushSubscription, requireUser, savePushSubscription } from './_lib/store.js';
+import { isSubscription, sendPush, vapidPublicKey } from './_lib/webpush.js';
 
 function parseBody(req: any): Record<string, unknown> {
   try {
@@ -17,7 +17,8 @@ function parseBody(req: any): Record<string, unknown> {
  * DELETE { endpoint } → removes this device's subscription
  */
 export default async function handler(req: any, res: any) {
-  if (!(await requireSession(req, res))) return;
+  const user = await requireUser(req, res);
+  if (!user) return;
   const url = new URL(req.url ?? '/', 'http://localhost');
 
   if (req.method === 'GET') {
@@ -33,6 +34,7 @@ export default async function handler(req: any, res: any) {
     }
     const sent = await sendPush(
       { title: 'Ledger test notification', body: 'Push notifications are working on this device.', tag: 'test', path: 'dashboard' },
+      user,
       endpoint,
     );
     res.status(200).json({ sent });
@@ -45,14 +47,14 @@ export default async function handler(req: any, res: any) {
       res.status(400).json({ error: 'invalid subscription' });
       return;
     }
-    await saveSubscription(subscription);
+    await savePushSubscription(user, subscription);
     res.status(200).json({ ok: true });
     return;
   }
 
   if (req.method === 'DELETE') {
     const { endpoint } = parseBody(req);
-    if (typeof endpoint === 'string') await removeSubscription(endpoint);
+    if (typeof endpoint === 'string') await removePushSubscription(user, endpoint);
     res.status(200).json({ ok: true });
     return;
   }

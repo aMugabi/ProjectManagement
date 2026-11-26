@@ -1,13 +1,13 @@
 import { isEmail } from '../src/shared/digestEmail.js';
 import { emailConfigured, sendEmail } from './_lib/email.js';
-import { requireSession } from './_lib/session.js';
+import { requireUser } from './_lib/store.js';
 
 /**
  * POST { to } → sends a test email, so the address and the email service can be checked from
  * Settings. Session required (only the owner can trigger it).
  */
 export default async function handler(req: any, res: any) {
-  if (!(await requireSession(req, res))) return;
+  if (!(await requireUser(req, res))) return;
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'method not allowed' });
     return;

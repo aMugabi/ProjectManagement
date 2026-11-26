@@ -1,7 +1,5 @@
-import { createHash } from 'node:crypto';
 import webpush, { type PushSubscription } from 'web-push';
-import { PUSH_SUBS_KEY } from './keys.js';
-import { kv } from './session.js';
+import { pushSubscriptions, removePushSubscription } from './store.js';
 
 /** What public/push-sw.js expects in each push message. */
 export interface PushPayload {
@@ -24,10 +22,6 @@ function configured(): boolean {
   return true;
 }
 
-export function subscriptionId(endpoint: string): string {
-  return createHash('sha256').update(endpoint).digest('hex');
-}
-
 export function isSubscription(v: unknown): v is PushSubscription {
   const s = v as PushSubscription | null;
   return (
@@ -38,24 +32,13 @@ export function isSubscription(v: unknown): v is PushSubscription {
   );
 }
 
-export async function saveSubscription(sub: PushSubscription): Promise<void> {
-  await kv.hset(PUSH_SUBS_KEY, { [subscriptionId(sub.endpoint)]: JSON.stringify(sub) });
-}
-
-export async function removeSubscription(endpoint: string): Promise<void> {
-  await kv.hdel(PUSH_SUBS_KEY, subscriptionId(endpoint));
-}
-
 /**
- * Sends to every saved subscription (or only `onlyEndpoint`). Subscriptions the push service
- * reports as gone (404/410) are deleted. Returns how many deliveries were accepted.
+ * Sends to every one of the user's saved subscriptions (or only `onlyEndpoint`). Subscriptions the
+ * push service reports as gone (404/410) are deleted. Returns how many deliveries were accepted.
  */
-export async function sendPush(payload: PushPayload, onlyEndpoint?: string): Promise<number> {
+export async function sendPush(payload: PushPayload, userId: string, onlyEndpoint?: string): Promise<number> {
   if (!configured()) return 0;
-  const stored = (await kv.hgetall<Record<string, PushSubscription | string>>(PUSH_SUBS_KEY)) ?? {};
-  const subs = Object.values(stored)
-    .map((v) => (typeof v === 'string' ? (JSON.parse(v) as PushSubscription) : v))
-    .filter((s) => isSubscription(s) && (!onlyEndpoint || s.endpoint === onlyEndpoint));
+  const subs = (await pushSubscriptions(userId)).filter((s) => isSubscription(s) && (!onlyEndpoint || s.endpoint === onlyEndpoint));
 
   const body = JSON.stringify(payload);
   const results = await Promise.allSettled(subs.map((s) => webpush.sendNotification(s, body, { TTL: 12 * 60 * 60 })));
@@ -67,7 +50,7 @@ export async function sendPush(payload: PushPayload, onlyEndpoint?: string): Pro
         return;
       }
       const status = (r.reason as { statusCode?: number })?.statusCode;
-      if (status === 404 || status === 410) await removeSubscription(subs[i].endpoint);
+      if (status === 404 || status === 410) await removePushSubscription(userId, subs[i].endpoint);
       else console.error('Push delivery failed', status, (r.reason as Error)?.message);
     }),
   );

@@ -3,16 +3,21 @@
 // any difference rolls everything back. Run it with --dry-run first: that does all of it, prints
 // the comparison, and always rolls back.
 // Usage:
-//   DATABASE_OWNER_URL=<owner role> [DATABASE_URL=<app role>] [AUTH_PASSWORD_HASH=<scrypt$...>] \
+//   DATABASE_OWNER_URL=<owner role> [DATABASE_URL=<app role>] \
+//   AUTH_PASSWORD_HASH=<scrypt$...> AUTH_TOTP_SECRET=<...> AUTH_RECOVERY_CODES=<...> MFA_ENCRYPTION_KEY=<...> \
 //     npm run db:import -- --email you@example.org --from ~/ledger-backups/ledger-....json.gpg [--dry-run]
 // With DATABASE_URL set, a real import is then checked again through the app's own role and
-// policies. AUTH_PASSWORD_HASH carries the current password over to the new sign-in.
+// policies. AUTH_PASSWORD_HASH carries the current password over, and AUTH_TOTP_SECRET with
+// AUTH_RECOVERY_CODES the authenticator and recovery codes (encrypted with MFA_ENCRYPTION_KEY,
+// 32 random bytes in base64, which the deploy then needs too). Sign-in on Postgres requires MFA,
+// so these are required; --without-mfa skips them (for test databases only).
 // Prints counts and checksums only, never task names.
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import pg from 'pg';
-import { importDocument, verifyAsApp } from '../api/_lib/db/import.js';
+import { encryptionKey } from '../api/_lib/auth/secretBox.js';
+import { importDocument, verifyAsApp, type MfaToCarry } from '../api/_lib/db/import.js';
 
 function readDocument(file: string): unknown {
   let text: string;
@@ -41,11 +46,23 @@ async function main() {
   if (!email || !from || !ownerUrl) {
     throw new Error('Usage: DATABASE_OWNER_URL=... npm run db:import -- --email you@example.org --from FILE [--dry-run]');
   }
+  let mfa: MfaToCarry | undefined;
+  if (!process.argv.includes('--without-mfa')) {
+    const { AUTH_PASSWORD_HASH, AUTH_TOTP_SECRET, AUTH_RECOVERY_CODES } = process.env;
+    if (!AUTH_PASSWORD_HASH || !AUTH_TOTP_SECRET || !AUTH_RECOVERY_CODES) {
+      throw new Error('Set AUTH_PASSWORD_HASH, AUTH_TOTP_SECRET and AUTH_RECOVERY_CODES (as in Vercel) and MFA_ENCRYPTION_KEY: sign-in on Postgres requires them.');
+    }
+    mfa = {
+      totpSecret: AUTH_TOTP_SECRET,
+      recoveryHashes: AUTH_RECOVERY_CODES.split(',').map((h) => h.trim().toLowerCase()).filter(Boolean),
+      key: encryptionKey(),
+    };
+  }
   const document = readDocument(from);
   const owner = new pg.Client({ connectionString: ownerUrl });
   await owner.connect();
   try {
-    const result = await importDocument(owner, { email, passwordHash: process.env.AUTH_PASSWORD_HASH, document, dryRun });
+    const result = await importDocument(owner, { email, passwordHash: process.env.AUTH_PASSWORD_HASH, mfa, document, dryRun });
     console.log(dryRun ? 'Dry run: everything below was done, then rolled back.\n' : 'Imported and committed.\n');
     console.log('workspace        projects  tasks  done  dependencies  deletions');
     for (const w of result.before.workspaces) {
@@ -54,6 +71,7 @@ async function main() {
     console.log(`\nRows: ${Object.entries(result.rowCounts).map(([t, n]) => `${t} ${n}`).join(', ')}; baseline log entries ${result.baselineEntries}`);
     console.log(`Checksum before ${result.before.checksum}\n         after  ${result.after.checksum}  (same)`);
     for (const n of result.notes) console.log(`Note: ${n.where}: ${n.note}`);
+    console.log(mfa ? `Sign-in: password and authenticator carried over (${mfa.recoveryHashes.length} recovery codes).` : 'Sign-in: no MFA carried over (--without-mfa): this user cannot sign in on Postgres.');
 
     if (!dryRun && process.env.DATABASE_URL) {
       const app = new pg.Client({ connectionString: process.env.DATABASE_URL });

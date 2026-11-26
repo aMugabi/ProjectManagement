@@ -1,0 +1,149 @@
+[
+ {
+  "name": "token stored, not its hash",
+  "file": "api/_lib/auth/pgAuth.ts",
+  "find": "    hashToken(token), userId, SESSION_DAYS,\n",
+  "replace": "    token.padEnd(64, '0').slice(0, 64).replace(/[^0-9a-f]/g, '0'), userId, SESSION_DAYS,\n",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "sessions not renewed",
+  "file": "api/_lib/auth/pgAuth.ts",
+  "find": "`update sessions set last_used_at = now(), expires_at = now() + make_interval(days => $2)\n      where token_hash = $1",
+  "replace": "`update sessions set last_used_at = now(), expires_at = expires_at + make_interval(days => $2 - $2)\n      where token_hash = $1",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "expired sessions accepted",
+  "file": "api/_lib/auth/pgAuth.ts",
+  "find": "where token_hash = $1 and expires_at > now() returning user_id",
+  "replace": "where token_hash = $1 returning user_id",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "sign out everywhere ends nothing",
+  "file": "api/_lib/auth/pgAuth.ts",
+  "find": "await db.query('delete from sessions where user_id = $1', [userId]);",
+  "replace": "await db.query('delete from sessions where false and user_id = $1', [userId]);",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "no per-address limit",
+  "file": "api/_lib/auth/pgAuth.ts",
+  "find": "return r.rows[0].ip_n < LIMITS.perIp && r.rows[0].all_n < LIMITS.overall;",
+  "replace": "return r.rows[0].all_n < LIMITS.overall;",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "no overall limit",
+  "file": "api/_lib/auth/pgAuth.ts",
+  "find": "return r.rows[0].ip_n < LIMITS.perIp && r.rows[0].all_n < LIMITS.overall;",
+  "replace": "return r.rows[0].ip_n < LIMITS.perIp;",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "attempts not recorded",
+  "file": "api/_lib/auth/pgAuth.ts",
+  "find": "  await db.query(\"insert into login_attempts (limit_key) values ($1), ('all')\", [`ip:${ip}`]);\n",
+  "replace": "",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "MFA optional",
+  "file": "api/_lib/auth/pgAuth.ts",
+  "find": "  if (!factor || typeof code !== 'string') return false;",
+  "replace": "  if (!factor) return true;\n  if (typeof code !== 'string') return false;",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "codes reusable",
+  "file": "api/_lib/auth/pgAuth.ts",
+  "find": "  return r.rowCount === 1;\n}\n\n/** A valid, unused",
+  "replace": "  return r.rowCount !== null;\n}\n\n/** A valid, unused",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "any recovery code accepted",
+  "file": "api/_lib/auth/pgAuth.ts",
+  "find": "if (!factor.recovery_code_hashes.includes(hash) || !(await claim(db, userId, `recovery:${hash}`))) return false;",
+  "replace": "if (!(await claim(db, userId, `recovery:${hash}`))) return false;",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "wrong password accepted",
+  "file": "api/_lib/auth/pgAuth.ts",
+  "find": "if (!identity || !password || !passwordOk) return null;",
+  "replace": "if (!identity || !password) return null;",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "email not normalised",
+  "file": "api/_lib/auth/pgAuth.ts",
+  "find": "const email = typeof input.email === 'string' ? input.email.trim().toLowerCase() : '';",
+  "replace": "const email = typeof input.email === 'string' ? input.email : '';",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "secret not bound to its user",
+  "file": "api/_lib/auth/secretBox.ts",
+  "find": "  cipher.setAAD(Buffer.from(boundTo, 'utf8'));\n",
+  "replace": "",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "form not told to ask for an email",
+  "file": "api/_lib/store.ts",
+  "find": "return onPostgres() ? { mfa: true, email: true } : { mfa: mfaConfigured(), email: false };",
+  "replace": "return onPostgres() ? { mfa: true, email: false } : { mfa: mfaConfigured(), email: false };",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "sign-in not rate-limited",
+  "file": "api/_lib/store.ts",
+  "find": "  if (!(await pgAuth.loginAllowed(db, input.ip))) return 'rate-limited';\n",
+  "replace": "",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "sign out everywhere keeps push",
+  "file": "api/_lib/store.ts",
+  "find": "  await withUser(db, userId, (c) => c.query('delete from push_subscriptions where user_id = $1', [userId]));\n",
+  "replace": "",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "reminders sent twice",
+  "file": "api/_lib/store.ts",
+  "find": "    return r.rowCount === 1;\n  });\n}",
+  "replace": "    return r.rowCount !== null;\n  });\n}",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "failed email not given back",
+  "file": "api/_lib/store.ts",
+  "find": "  await withUser(appPool(), userId, (c) => c.query('delete from reminders_sent where reminder_key = $1', [key]));",
+  "replace": "  void key;",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "reminder claims never expire",
+  "file": "api/_lib/store.ts",
+  "find": "    await c.query('delete from reminders_sent where sent_at < now() - make_interval(secs => $1)', [ttlSeconds]);\n",
+  "replace": "",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "email failure not reported",
+  "file": "api/reminders.ts",
+  "find": "  if (emailFailed) return Response.json(",
+  "replace": "  if (false) return Response.json(",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ },
+ {
+  "name": "one user's document for another",
+  "file": "api/_lib/store.ts",
+  "find": "  const rows = await withUser(appPool(), userId, (c) => readRows(c, userId));\n  return rows.workspaces.length",
+  "replace": "  const first = (await reminderUsers())[0];\n  const rows = await withUser(appPool(), first, (c) => readRows(c, first));\n  return rows.workspaces.length",
+  "test": "npx vitest run api/postgres.test.ts api/_lib/auth"
+ }
+]

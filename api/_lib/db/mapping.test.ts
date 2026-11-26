@@ -91,6 +91,14 @@ describe('documentToRows / rowsToDocument', () => {
     expect(summariseDocument(rowsToDocument(rows, 'default', NOW))).toEqual(summariseDocument(doc));
   });
 
+  it("doesn't let a deletion in a workspace that no longer exists block the comparison", () => {
+    const doc = document();
+    doc.deleted['task:vanished-ws:x'] = NOW - 10;
+    const { rows, notes } = documentToRows(doc, OWNER, ids());
+    expect(notes).toEqual([{ where: 'task:vanished-ws:x', note: 'deletion in a workspace that no longer exists; not carried over' }]);
+    expect(summariseDocument(rowsToDocument(rows, 'default', NOW))).toEqual(summariseDocument(doc));
+  });
+
   it('keeps what it has to change, and says so', () => {
     const doc = document();
     doc.tasks[2] = { ...doc.tasks[2], project: 'vanished', dueDate: 'soon' };
