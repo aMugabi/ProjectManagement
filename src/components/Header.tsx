@@ -5,7 +5,8 @@ import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
 import { visibleTasks, withoutDone } from '../lib/selectors';
 import { pluralLabel, TYPE_IDS } from '../shared/itemTypes';
-import { offsetFromToday, formatLongDate, today } from '../shared/date';
+import { isSnoozed, isWaiting } from '../shared/followUp';
+import { dateToIso, offsetFromToday, formatLongDate, today } from '../shared/date';
 import s from './Header.module.css';
 import { RemindersBell } from './RemindersBell';
 
@@ -59,6 +60,9 @@ export function Header() {
   } else if (screen === 'timeline') {
     kicker = 'Timeline';
     title = 'Next two weeks';
+  } else if (screen === 'waiting') {
+    kicker = 'Follow-ups';
+    title = 'Waiting on';
   } else if (screen === 'sort') {
     kicker = 'Products and partners';
     title = 'Sort projects';
@@ -72,7 +76,10 @@ export function Header() {
 
   let resultLine: string;
   if (screen === 'dashboard') {
-    resultLine = `${open.length} open · ${overdue} overdue`;
+    const snoozed = open.filter((t) => isSnoozed(t, dateToIso(today()))).length;
+    resultLine = `${open.length} open · ${overdue} overdue${snoozed ? ` · ${snoozed} snoozed` : ''}`;
+  } else if (screen === 'waiting') {
+    resultLine = `${open.filter(isWaiting).length} waiting`;
   } else {
     const shown = screen === 'tasks' && f.taskView === 'board' ? filtered : screen === 'timeline' || f.hideDone ? withoutDone(filtered) : filtered;
     resultLine = `${shown.length} shown`;

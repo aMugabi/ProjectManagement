@@ -130,7 +130,7 @@ function EmailDigestSettings({
       <label className={s.row}>
         <span>
           Email me the daily digest
-          <small>One email at the digest time: due today, overdue and coming up</small>
+          <small>One email at the digest time: due today, overdue, coming up and to chase</small>
         </span>
         <input
           type="checkbox"
@@ -263,7 +263,9 @@ function SettingsPanel({ close }: { close: () => void }) {
           <label className={s.row}>
             <span>
               Daily digest at
-              <small>Tasks due today{reminders.includeOverdue ? ' and overdue' : ''}; lead reminders arrive then too</small>
+              <small>
+                One message a day: due today{reminders.includeOverdue ? ', overdue' : ''}, coming up and to chase
+              </small>
             </span>
             <input
               type="time"
@@ -276,7 +278,7 @@ function SettingsPanel({ close }: { close: () => void }) {
           <label className={s.row}>
             <span>
               Default reminder
-              <small>Each task can override this in its details</small>
+              <small>How early an item shows under "Coming up"; each item can override this</small>
             </span>
             <select
               className={s.input}

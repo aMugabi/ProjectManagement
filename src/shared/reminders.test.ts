@@ -52,16 +52,21 @@ describe('computeReminders', () => {
     expect(computeReminders(state(tasks), { date: TODAY, minutes: parseTime('07:59') })).toEqual([]);
   });
 
-  it('sends the digest and one lead reminder per task from the digest time', () => {
+  it('sends one digest from the digest time, with what is coming up folded in', () => {
     const r = computeReminders(state(tasks), { date: TODAY, minutes: parseTime('08:00') });
-    expect(r.map((x) => x.key)).toEqual([
-      'digest:2026-11-03',
-      'lead:default:tomorrow:2026-11-04',
-      'lead:default:in3-own-lead:2026-11-06',
+    expect(r).toEqual([
+      {
+        key: 'digest:2026-11-03',
+        title: 'Ledger · 1 due today, 1 overdue, 2 coming up',
+        body: 'Today: today\nOverdue: late\nComing up: tomorrow (tomorrow), in3-own-lead (in 3d)',
+        url: 'dashboard',
+      },
     ]);
-    expect(r[0].title).toBe('Ledger · 1 due today, 1 overdue');
-    expect(r[1]).toMatchObject({ title: 'Due tomorrow: tomorrow', body: 'Home', url: 'dashboard?task=tomorrow&ws=default' });
-    expect(r[2].title).toBe('Due in 3 days: in3-own-lead');
+  });
+
+  it('sends the digest for coming-up items alone', () => {
+    const [r] = computeReminders(state([task('soon', '2026-11-04')]), { date: TODAY, minutes: 600 });
+    expect(r).toMatchObject({ title: 'Ledger · 1 coming up', body: 'Coming up: soon (tomorrow)' });
   });
 
   it('respects includeOverdue and the enabled switch', () => {
@@ -73,7 +78,7 @@ describe('computeReminders', () => {
     expect(computeReminders(off, { date: TODAY, minutes: 600 })).toEqual([]);
   });
 
-  it('covers tasks in inactive workspaces too, naming the workspace', () => {
+  it('covers tasks in inactive workspaces too', () => {
     const s = state([], {
       workspaces: [
         { id: 'default', name: 'Home', updatedAt: 1 },
@@ -82,7 +87,8 @@ describe('computeReminders', () => {
       workspaceData: { work: { projects: [], tasks: [task('w', '2026-11-04')], products: [], partners: [], pairs: [] } },
     });
     const [r] = computeReminders(s, { date: TODAY, minutes: 600 });
-    expect(r).toMatchObject({ key: 'lead:work:w:2026-11-04', body: 'Work', url: 'dashboard?task=w&ws=work' });
+    expect(r).toMatchObject({ key: 'digest:2026-11-03', body: 'Coming up: w (tomorrow)' });
+    expect(attentionTasks(s, TODAY).upcoming[0].workspace.name).toBe('Work');
   });
 });
 
@@ -101,24 +107,47 @@ describe('time helpers', () => {
 });
 
 describe('outsideText', () => {
-  const reminders = computeReminders(state(tasks, { reminders: { enabled: true, digestTime: '08:00', defaultLeadDays: 1 } as SyncedState['reminders'] }), {
+  const [digest] = computeReminders(state(tasks, { reminders: { enabled: true, digestTime: '08:00', defaultLeadDays: 1 } as SyncedState['reminders'] }), {
     date: TODAY,
     minutes: 9 * 60,
   });
-  const digest = reminders.find((r) => r.kind === 'digest')!;
-  const lead = reminders.find((r) => r.taskId === 'in3-own-lead')!;
 
   it('shows the full text only when private notifications are explicitly off', () => {
-    expect(outsideText(lead, false)).toEqual({ title: lead.title, body: lead.body });
-    expect(lead.title).toContain('in3-own-lead');
+    expect(outsideText(digest, false)).toEqual({ title: digest.title, body: digest.body });
+    expect(digest.body).toContain('in3-own-lead');
   });
 
-  it('keeps only counts and timing when private, or when the setting predates this option', () => {
+  it('keeps only the counts when private, or when the setting predates this option', () => {
     for (const setting of [true, undefined]) {
       expect(outsideText(digest, setting)).toEqual({ title: digest.title, body: 'Open Ledger to see them.' });
-      expect(outsideText(lead, setting)).toEqual({ title: 'Ledger · A task is due in 3 days', body: 'Open Ledger to see it.' });
     }
-    expect(digest.title).toBe('Ledger · 1 due today, 1 overdue'); // counts only, no names
+    expect(digest.title).toBe('Ledger · 1 due today, 1 overdue, 2 coming up'); // counts only, no names
+  });
+});
+
+describe('waiting on, chasing and snoozing (Step 2)', () => {
+  it('lists items to chase from their chase date, with who they wait on, and counts them', () => {
+    const s = state([
+      task('chase-today', '2026-11-20', { waitingOn: 'Telco IT', chaseOn: TODAY }),
+      task('chase-late', '2026-11-20', { waitingOn: 'Bank ops', chaseOn: '2026-11-01' }),
+      task('chase-later', '2026-11-20', { waitingOn: 'Bank ops', chaseOn: '2026-11-04' }),
+      task('no-one', '2026-11-20', { chaseOn: TODAY }),
+    ]);
+    const a = attentionTasks(s, TODAY);
+    expect(a.chase.map((r) => [r.task.id, r.daysLeft])).toEqual([['chase-late', -2], ['chase-today', 0]]);
+    const [r] = computeReminders(s, { date: TODAY, minutes: 600 });
+    expect(r.title).toBe('Ledger · 2 to chase');
+    expect(r.body).toBe('To chase: chase-late (Bank ops), chase-today (Telco IT)');
+  });
+
+  it('leaves snoozed items out of everything until their date', () => {
+    const snoozed = [
+      task('late', '2026-11-01', { snoozedUntil: '2026-11-04' }),
+      task('chase', '2026-11-20', { waitingOn: 'Telco IT', chaseOn: TODAY, snoozedUntil: '2026-11-04' }),
+    ];
+    expect(computeReminders(state(snoozed), { date: TODAY, minutes: 600 })).toEqual([]);
+    const tomorrow = attentionTasks(state(snoozed), '2026-11-04');
+    expect([tomorrow.overdue.map((r) => r.task.id), tomorrow.chase.map((r) => r.task.id)]).toEqual([['late'], ['chase']]);
   });
 });
 

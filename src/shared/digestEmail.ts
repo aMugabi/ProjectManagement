@@ -1,9 +1,9 @@
 /**
- * The morning digest as an email: due today, overdue (if enabled) and coming up, each linking to
- * the task. Pure, so api/reminders.ts and the tests share it. Email is digest-only by design —
- * one message a day, never one per task.
+ * The morning digest as an email: due today, overdue (if enabled), coming up and to chase, each
+ * linking to the item. Pure, so api/reminders.ts and the tests share it. Email is digest-only by
+ * design: one message a day, never one per item.
  */
-import { attentionTasks, dueLabel, parseTime, taskUrl, type LocalNow, type TaskRef } from './reminders.js';
+import { attentionTasks, digestCounts, dueLabel, parseTime, taskUrl, type LocalNow, type TaskRef } from './reminders.js';
 import type { SyncedState } from './state.js';
 
 export interface DigestEmail {
@@ -31,24 +31,25 @@ export function digestEmail(state: SyncedState, now: LocalNow, appUrl: string): 
   if (!settings.enabled || !settings.emailDigest || !isEmail(settings.email)) return null;
   if (now.minutes < parseTime(settings.digestTime)) return null;
 
-  const { overdue, today, upcoming } = attentionTasks(state, now.date);
+  const { overdue, today, upcoming, chase } = attentionTasks(state, now.date);
   const late = settings.includeOverdue ? overdue : [];
-  if (!today.length && !late.length && !upcoming.length) return null;
+  const counts = digestCounts({ today, overdue: late, upcoming, chase });
+  if (!counts.length) return null;
 
   const multiWorkspace = state.workspaces.length > 1;
-  const where = (r: TaskRef) => [r.projectName, multiWorkspace ? r.workspace.name : ''].filter(Boolean).join(' · ');
   const link = (r: TaskRef) => `${appUrl.replace(/\/$/, '')}/${taskUrl(r)}`;
   const sections: [string, TaskRef[]][] = [
     ['Due today', today],
     ['Overdue', late],
     ['Coming up', upcoming],
+    ['To chase', chase],
   ];
+  // In "To chase" the timing is the chase date's, and who it waits on comes first.
+  const chasing = (r: TaskRef) => chase.includes(r);
+  const where = (r: TaskRef) =>
+    [chasing(r) ? r.task.waitingOn?.trim() : '', r.projectName, multiWorkspace ? r.workspace.name : ''].filter(Boolean).join(' · ');
+  const timing = (r: TaskRef) => (chasing(r) ? `chase ${dueLabel(r.daysLeft)}` : dueLabel(r.daysLeft));
 
-  const counts = [
-    today.length && `${today.length} due today`,
-    late.length && `${late.length} overdue`,
-    upcoming.length && `${upcoming.length} coming up`,
-  ].filter(Boolean);
   const subject = `Ledger · ${counts.join(', ')}`;
   const key = `email-digest:${now.date}`;
   const to = settings.email.trim();
@@ -60,7 +61,7 @@ export function digestEmail(state: SyncedState, now: LocalNow, appUrl: string): 
     ...sections
       .filter(([, refs]) => refs.length)
       .map(([label, refs]) =>
-        [`\n${label.toUpperCase()}`, ...refs.map((r) => `- ${r.task.title} (${[where(r), dueLabel(r.daysLeft)].filter(Boolean).join(', ')})\n  ${link(r)}`)].join('\n'),
+        [`\n${label.toUpperCase()}`, ...refs.map((r) => `- ${r.task.title} (${[where(r), timing(r)].filter(Boolean).join(', ')})\n  ${link(r)}`)].join('\n'),
       ),
     `\nOpen Ledger: ${appUrl}\nYou get this because "Email me the daily digest" is on in Ledger's Settings.`,
   ].join('\n');
@@ -70,7 +71,7 @@ export function digestEmail(state: SyncedState, now: LocalNow, appUrl: string): 
     `<a href="${esc(link(r))}" style="color:#1c1b19;text-decoration:none;font-weight:600">${esc(r.task.title)}</a>` +
     (where(r) ? `<div style="color:#8b8780;font-size:12px">${esc(where(r))}</div>` : '') +
     `</td><td style="padding:6px 0 6px 12px;border-bottom:1px solid #eeece6;text-align:right;white-space:nowrap;` +
-    `font-family:monospace;font-size:12px;color:${r.daysLeft < 0 ? '#8f4a3c' : '#7a4a2f'}">${esc(dueLabel(r.daysLeft))}</td></tr>`;
+    `font-family:monospace;font-size:12px;color:${r.daysLeft < 0 ? '#8f4a3c' : '#7a4a2f'}">${esc(timing(r))}</td></tr>`;
 
   const html =
     `<div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;color:#1c1b19">` +

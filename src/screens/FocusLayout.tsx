@@ -5,7 +5,8 @@ import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
 import { visibleTasks, withoutDone, sortByDue, homeOf, subtaskProgress, projectStats, depTitles, phaseOf, type GroupKind } from '../lib/selectors';
 import { isDone } from '../shared/itemTypes';
-import { offsetFromToday } from '../shared/date';
+import { dateToIso, offsetFromToday, today } from '../shared/date';
+import { isSnoozed } from '../shared/followUp';
 import { Checkbox } from '../components/shared/Checkbox';
 import { PriorityPill } from '../components/shared/PriorityPill';
 import { DuePill } from '../components/shared/DuePill';
@@ -19,7 +20,9 @@ export function FocusLayout() {
   const navigate = useNavigate();
   const f = useFilters();
 
-  const open = withoutDone(visibleTasks(tasks, store, f));
+  // Snoozed items stay out of the dashboard until their date (the header counts them).
+  const todayIso = dateToIso(today());
+  const open = withoutDone(visibleTasks(tasks, store, f)).filter((t) => !isSnoozed(t, todayIso));
   const needsToday = sortByDue(open.filter((t) => offsetFromToday(t.dueDate) <= 0));
   const restOfWeek = sortByDue(
     open.filter((t) => {

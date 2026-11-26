@@ -7,21 +7,23 @@ import { notificationPermission, requestNotificationPermission } from '../lib/no
 import { openTask } from '../lib/openTask';
 import s from './RemindersBell.module.css';
 
-/** Header bell: everything overdue, due today, or inside its reminder lead time, across all workspaces. */
+/** Header bell: everything overdue, due today, inside its lead time or to chase, across all workspaces. */
 export function RemindersBell() {
   const state = useTaskStore();
   const openSettings = useUiStore((st) => st.openSettings);
   const [open, setOpen] = useState(false);
   const [permission, setPermission] = useState(notificationPermission);
 
-  const { overdue, today: dueToday, upcoming } = attentionTasks(state, dateToIso(today()));
-  const count = overdue.length + dueToday.length + upcoming.length;
+  const { overdue, today: dueToday, upcoming, chase } = attentionTasks(state, dateToIso(today()));
+  // An item due today can also be one to chase: count it once.
+  const count = new Set([...overdue, ...dueToday, ...upcoming, ...chase].map((r) => `${r.workspace.id}:${r.task.id}`)).size;
   const showWorkspace = state.workspaces.length > 1;
 
   const sections: [string, TaskRef[]][] = [
     ['Overdue', overdue],
     ['Due today', dueToday],
     ['Coming up', upcoming],
+    ['To chase', chase],
   ];
 
   return (
@@ -87,9 +89,13 @@ export function RemindersBell() {
                       >
                         <span className={s.rowTitle}>{ref.task.title}</span>
                         <span className={s.rowMeta}>
-                          {[ref.projectName, showWorkspace ? ref.workspace.name : ''].filter(Boolean).join(' · ')}
+                          {[label === 'To chase' ? ref.task.waitingOn?.trim() : '', ref.projectName, showWorkspace ? ref.workspace.name : '']
+                            .filter(Boolean)
+                            .join(' · ')}
                         </span>
-                        <span className={`${s.rowDue} ${ref.daysLeft < 0 ? s.late : ''}`}>{dueLabel(ref.daysLeft)}</span>
+                        <span className={`${s.rowDue} ${ref.daysLeft < 0 ? s.late : ''}`}>
+                          {label === 'To chase' ? `chase ${dueLabel(ref.daysLeft)}` : dueLabel(ref.daysLeft)}
+                        </span>
                       </button>
                     ))}
                   </div>

@@ -15,13 +15,13 @@ export function ReminderToasts({ toasts, onOpen, onSnooze, onDismiss }: Props) {
   return (
     <div className={s.stack} role="region" aria-label="Reminders" aria-live="polite">
       {shown.map((r) => (
-        <div key={r.key} className={`${s.toast} ${r.kind === 'digest' ? s.digest : ''}`}>
-          <div className={s.kicker}>{r.kind === 'digest' ? 'Today' : 'Reminder'}</div>
+        <div key={r.key} className={`${s.toast} ${s.digest}`}>
+          <div className={s.kicker}>Today</div>
           <div className={s.title}>{r.title}</div>
           {r.body && <div className={s.body}>{r.body}</div>}
           <div className={s.actions}>
             <button type="button" className={s.primary} onClick={() => onOpen(r)}>
-              {r.kind === 'digest' ? 'View' : 'Open task'}
+              View
             </button>
             <button type="button" className={s.secondary} onClick={() => onSnooze(r.key)}>
               Snooze 1h

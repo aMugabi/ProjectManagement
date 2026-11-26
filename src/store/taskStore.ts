@@ -8,7 +8,7 @@ import { CLOUD_ENABLED } from '../lib/cloud';
 import { createCloudStorage, onRemoteState } from '../lib/cloudStorage';
 import { STORE_KEY } from '../lib/deviceData';
 import { wouldCreateCycle } from '../lib/selectors';
-import { parseHome, sortProjects, uniqueId, withDetail, withHome, withoutGroup, withType, type HomeValue, type ProjectTarget } from '../lib/items';
+import { parseHome, sortProjects, uniqueId, withDate, withDetail, withWaiting, withHome, withoutGroup, withType, type HomeValue, type ProjectTarget } from '../lib/items';
 import { completeStatus, firstStatus, isDone, statusForPhase, typeOf, type Phase } from '../shared/itemTypes';
 
 const PROJECT_COLORS = [
@@ -83,6 +83,12 @@ interface TaskStore extends SyncedState {
   setDueDate: (id: string, dueDate: string) => void;
   setRecurring: (id: string, recurring: Recurring) => void;
   setRemindDaysBefore: (id: string, days: number | null | undefined) => void;
+  /** Who the item waits on ('' = nobody, which also clears the chase date). */
+  setWaitingOn: (id: string, waitingOn: string) => void;
+  /** When to chase them: an ISO date, or '' for none. */
+  setChaseOn: (id: string, date: string) => void;
+  /** Keeps the item out of reminders and the dashboard until an ISO date; '' wakes it. */
+  snooze: (id: string, until: string) => void;
   setTitle: (id: string, title: string) => void;
   setNotes: (id: string, notes: string) => void;
   addSubtask: (id: string, text: string) => void;
@@ -265,6 +271,12 @@ export const useTaskStore = create<TaskStore>()(
 
       setRemindDaysBefore: (id, days) =>
         set((s) => ({ tasks: updateTask(s.tasks, id, (t) => ({ ...t, remindDaysBefore: days })) })),
+
+      setWaitingOn: (id, waitingOn) => set((s) => ({ tasks: updateTask(s.tasks, id, (t) => withWaiting(t, waitingOn)) })),
+
+      setChaseOn: (id, date) => set((s) => ({ tasks: updateTask(s.tasks, id, (t) => withDate(t, 'chaseOn', date)) })),
+
+      snooze: (id, until) => set((s) => ({ tasks: updateTask(s.tasks, id, (t) => withDate(t, 'snoozedUntil', until)) })),
 
       setTitle: (id, title) => set((s) => ({ tasks: updateTask(s.tasks, id, (t) => ({ ...t, title })) })),
 

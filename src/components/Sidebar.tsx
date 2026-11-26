@@ -5,6 +5,7 @@ import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
 import { CLOUD_ENABLED } from '../lib/cloud';
 import { isDone } from '../shared/itemTypes';
+import { isWaiting } from '../shared/followUp';
 import type { GroupKind } from '../store/taskStore';
 import s from './Sidebar.module.css';
 
@@ -12,6 +13,7 @@ const NAV_ITEMS = [
   { screen: 'dashboard', glyph: '◧', label: 'Dashboard', showCount: false },
   { screen: 'tasks', glyph: '≡', label: 'All tasks', showCount: true },
   { screen: 'timeline', glyph: '⋯', label: 'Timeline', showCount: false },
+  { screen: 'waiting', glyph: '⧖', label: 'Waiting on', showCount: true },
 ] as const;
 
 export function Sidebar() {
@@ -42,7 +44,8 @@ export function Sidebar() {
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
 
   const currentScreen = location.pathname.replace('/', '') || 'dashboard';
-  const openCount = tasks.filter((t) => !isDone(t)).length;
+  const open = tasks.filter((t) => !isDone(t));
+  const counts: Record<string, number> = { tasks: open.length, waiting: open.filter(isWaiting).length };
 
   function goToScreen(screen: string) {
     navigate(`/${screen}`);
@@ -123,7 +126,7 @@ export function Sidebar() {
             >
               <span className={s.glyph}>{item.glyph}</span>
               <span className={s.label}>{item.label}</span>
-              {item.showCount && <span className={s.count}>{openCount}</span>}
+              {item.showCount && <span className={s.count}>{counts[item.screen]}</span>}
             </button>
           );
         })}

@@ -71,4 +71,18 @@ describe('digestEmail', () => {
     expect(isEmail('a@b')).toBe(false);
     expect(isEmail('')).toBe(false);
   });
+
+  it('adds the items to chase, with who they wait on, and leaves snoozed items out (Step 2)', () => {
+    const chase = { ...task('w', 'Settlement file', '2026-11-20'), waitingOn: 'Telco IT', chaseOn: '2026-11-02' };
+    const snoozed = { ...task('s', 'Snoozed bill', TODAY), snoozedUntil: '2026-11-05' };
+    const email = digestEmail(state([task('a', 'Pay rent', TODAY), chase, snoozed]), { date: TODAY, minutes: 600 }, APP)!;
+    expect(email.subject).toBe('Ledger · 1 due today, 1 to chase');
+    expect(email.text).toContain('TO CHASE\n- Settlement file (Telco IT · Home, chase 1d late)');
+    expect(email.html).toContain('chase 1d late');
+    expect(email.text).not.toContain('Snoozed bill');
+    const quiet = digestEmail(state([task('a', 'Pay rent', TODAY), chase], { ...on, privateNotifications: true }), { date: TODAY, minutes: 600 }, APP)!;
+    expect(quiet.text).toContain('To chase: 1');
+    expect(quiet.text).not.toContain('Telco IT');
+  });
 });
+

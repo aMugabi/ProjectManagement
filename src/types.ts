@@ -93,7 +93,7 @@ export interface WorkspaceSnapshot {
 
 export interface ReminderSettings {
   enabled: boolean;
-  /** Local time of day ('HH:MM') for the daily digest and lead reminders. */
+  /** Local time of day ('HH:MM') for the daily digest (which includes the lead reminders). */
   digestTime: string;
   /** Lead reminder for tasks without their own remindDaysBefore. 0 = none beyond the digest. */
   defaultLeadDays: number;

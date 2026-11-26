@@ -6,7 +6,8 @@ import { HomePicker } from './shared/HomePicker';
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { homeOf, depTitles, subtaskProgress, isDepBlocked, wouldCreateCycle } from '../lib/selectors';
-import { advanceRecurrence, dueMeta, formatLongDateShortWeekday, isoToDate } from '../shared/date';
+import { advanceRecurrence, dateToIso, dueMeta, formatLongDateShortWeekday, isoToDate, today } from '../shared/date';
+import { isSnoozed, isWaiting, quickDates } from '../shared/followUp';
 import { Checkbox } from './shared/Checkbox';
 import s from './Drawer.module.css';
 
@@ -65,6 +66,9 @@ export function Drawer() {
     setDueDate,
     setRecurring,
     setRemindDaysBefore,
+    setWaitingOn,
+    setChaseOn,
+    snooze,
     reminders,
     setTitle,
     setNotes,
@@ -102,6 +106,10 @@ export function Drawer() {
   const meta = dueMeta(task.dueDate, done);
   const prog = subtaskProgress(task);
   const blocked = isDepBlocked(task, tasks);
+  const todayIso = dateToIso(today());
+  const quick = quickDates(todayIso);
+  const snoozed = isSnoozed(task, todayIso);
+  const dayName = (iso: string) => formatLongDateShortWeekday(isoToDate(iso));
   const depCandidates = tasks.filter(
     (t) => !task.deps.includes(t.id) && !wouldCreateCycle(tasks, task.id, t.id),
   );
@@ -208,6 +216,75 @@ export function Drawer() {
               />
               <span className={s.fieldValueSans}>{meta.label}</span>
             </div>
+
+            <span className={s.fieldLabel}>Move to</span>
+            <div className={s.dueEditRow}>
+              <button type="button" className={s.prioBtn} aria-label="Move to tomorrow" onClick={() => setDueDate(task.id, quick.tomorrow)}>
+                Tomorrow
+              </button>
+              <button type="button" className={s.prioBtn} aria-label="Move to next week" onClick={() => setDueDate(task.id, quick.nextWeek)}>
+                Next week
+              </button>
+            </div>
+
+            <span className={s.fieldLabel}>Snooze</span>
+            <div className={s.dueEditRow}>
+              {snoozed && task.snoozedUntil ? (
+                <>
+                  <span className={s.fieldValueSans}>Until {dayName(task.snoozedUntil)}</span>
+                  <button type="button" className={s.prioBtn} onClick={() => snooze(task.id, '')}>
+                    Wake now
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="button" className={s.prioBtn} aria-label="Snooze until tomorrow" onClick={() => snooze(task.id, quick.tomorrow)}>
+                    Tomorrow
+                  </button>
+                  <button type="button" className={s.prioBtn} aria-label="Snooze until next week" onClick={() => snooze(task.id, quick.nextWeek)}>
+                    Next week
+                  </button>
+                  <input
+                    type="date"
+                    className={s.dateInput}
+                    aria-label="Snooze until"
+                    min={quick.tomorrow}
+                    value=""
+                    onChange={(e) => e.target.value && snooze(task.id, e.target.value)}
+                  />
+                </>
+              )}
+            </div>
+
+            <span className={s.fieldLabel}>Waiting on</span>
+            <input
+              className={s.select}
+              aria-label="Waiting on"
+              placeholder="Nobody"
+              value={task.waitingOn ?? ''}
+              onChange={(e) => setWaitingOn(task.id, e.target.value)}
+            />
+
+            {isWaiting(task) && (
+              <>
+                <span className={s.fieldLabel}>Chase on</span>
+                <div className={s.dueEditRow}>
+                  <button type="button" className={s.prioBtn} aria-label="Chase tomorrow" onClick={() => setChaseOn(task.id, quick.tomorrow)}>
+                    Tomorrow
+                  </button>
+                  <button type="button" className={s.prioBtn} aria-label="Chase next week" onClick={() => setChaseOn(task.id, quick.nextWeek)}>
+                    Next week
+                  </button>
+                  <input
+                    type="date"
+                    className={s.dateInput}
+                    aria-label="Chase on"
+                    value={task.chaseOn ?? ''}
+                    onChange={(e) => setChaseOn(task.id, e.target.value)}
+                  />
+                </div>
+              </>
+            )}
 
             <span className={s.fieldLabel}>Repeats</span>
             <div className={s.dueEditRow}>

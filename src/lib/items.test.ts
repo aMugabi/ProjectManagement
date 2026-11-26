@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptySnapshot } from '../shared/state';
 import type { Task } from '../types';
-import { convertProject, homeValue, sortProjects, sortSummary, uniqueId, parseHome, withDetail, withHome, withoutGroup, withType } from './items';
+import { convertProject, homeValue, withDate, withWaiting, sortProjects, sortSummary, uniqueId, parseHome, withDetail, withHome, withoutGroup, withType } from './items';
 
 const item = (extra: Partial<Task> = {}): Task => ({
   id: 'i', project: '', title: 'T', status: 'todo', priority: 'med', dueDate: '2026-12-01', subs: [], recurring: null, deps: [],
@@ -189,5 +189,22 @@ describe('sortProjects and sortSummary', () => {
     expect(uniqueId('Mobile Loans!', [])).toBe('mobile-loans');
     expect(uniqueId('Mobile Loans', ['mobile-loans', 'mobile-loans-2'])).toBe('mobile-loans-3');
     expect(uniqueId('!!!', [])).toBe('item');
+  });
+});
+
+describe('withWaiting and withDate (Step 2)', () => {
+  it('sets who an item waits on, and clearing it clears the chase date', () => {
+    const waiting = withWaiting(item({ id: 'a' }), 'Telco IT');
+    expect(waiting.waitingOn).toBe('Telco IT');
+    const chased = withDate(waiting, 'chaseOn', '2026-12-01');
+    expect(chased.chaseOn).toBe('2026-12-01');
+    const cleared = withWaiting(chased, ' ');
+    expect('waitingOn' in cleared || 'chaseOn' in cleared).toBe(false);
+  });
+
+  it('sets and clears a snooze without touching anything else', () => {
+    const t = item({ id: 'a', waitingOn: 'X' });
+    expect(withDate(t, 'snoozedUntil', '2026-11-30')).toEqual({ ...t, snoozedUntil: '2026-11-30' });
+    expect(withDate({ ...t, snoozedUntil: '2026-11-30' }, 'snoozedUntil', '')).toEqual(t);
   });
 });

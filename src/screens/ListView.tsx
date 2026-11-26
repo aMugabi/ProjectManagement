@@ -1,6 +1,8 @@
 import type { KeyboardEvent } from 'react';
 import type { Status, Task } from '../types';
 import { isDone, ITEM_TYPES, typeOf } from '../shared/itemTypes';
+import { isSnoozed, isWaiting } from '../shared/followUp';
+import { dateToIso, today } from '../shared/date';
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
@@ -18,6 +20,7 @@ function statusOptions(t: Task): { value: Status; label: string }[] {
 export function ListView() {
   const store = useTaskStore();
   const { tasks, projects, products, partners, pairs, toggleDone, setStatus, setTitle } = store;
+  const todayIso = dateToIso(today());
   const ui = useUiStore();
   const f = useFilters();
 
@@ -97,6 +100,16 @@ export function ListView() {
                 )}
                 {type !== 'task' && <span className={s.recurBadge}>{ITEM_TYPES[type].label}</span>}
                 {t.recurring && <span className={s.recurBadge}>{t.recurring}</span>}
+                {!done && isWaiting(t) && (
+                  <span className={s.recurBadge} title={`Waiting on ${t.waitingOn}`}>
+                    waiting
+                  </span>
+                )}
+                {!done && isSnoozed(t, todayIso) && (
+                  <span className={s.recurBadge} title={`Snoozed until ${t.snoozedUntil}`}>
+                    snoozed
+                  </span>
+                )}
                 {prog.total > 0 && (
                   <span className={s.subCount}>
                     {prog.done}/{prog.total}

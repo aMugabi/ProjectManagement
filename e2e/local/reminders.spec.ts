@@ -1,16 +1,17 @@
-import { drawer, expect, openSettings, openTaskLink, REMINDERS_ON, savedState, seed, stored, task, test } from '../fixtures';
+import { drawer, expect, iso, openSettings, openTaskLink, REMINDERS_ON, savedState, seed, stored, task, test } from '../fixtures';
 
 const dueSoon = () => [task('late', 'Renew licence', -2), task('today', 'Pay rent', 0), task('soon', 'Book flights', 1)];
 const toasts = (page: import('@playwright/test').Page) => page.getByRole('region', { name: 'Reminders' });
 
 test.describe('reminders and notifications (local-only build)', () => {
-  test('shows the daily digest and lead reminders as pop-ups', async ({ page }) => {
+  test('shows one daily digest pop-up, with what is coming up folded in', async ({ page }) => {
     await seed(page, stored({ tasks: dueSoon(), reminders: REMINDERS_ON }));
     await page.goto('dashboard');
-    await expect(toasts(page)).toContainText('Ledger · 1 due today, 1 overdue');
+    await expect(toasts(page)).toContainText('Ledger · 1 due today, 1 overdue, 1 coming up');
     await expect(toasts(page)).toContainText('Today: Pay rent');
     await expect(toasts(page)).toContainText('Overdue: Renew licence');
-    await expect(toasts(page)).toContainText('Due tomorrow: Book flights');
+    await expect(toasts(page)).toContainText('Coming up: Book flights (tomorrow)');
+    await expect(toasts(page).getByText('Today', { exact: true })).toHaveCount(1); // one pop-up, not one per task
   });
 
   test('the bell counts and lists overdue, due today and coming up', async ({ page }) => {
@@ -25,18 +26,32 @@ test.describe('reminders and notifications (local-only build)', () => {
     await expect(drawer(page).locator('textarea').first()).toHaveValue('Book flights');
   });
 
-  test('"Open task" on a reminder opens that task', async ({ page }) => {
-    await seed(page, stored({ tasks: dueSoon(), reminders: REMINDERS_ON }));
+  test('items to chase join the digest and the bell; snoozed items stay out', async ({ page }) => {
+    await seed(
+      page,
+      stored({
+        tasks: [
+          task('w', 'Settlement file', 9, { waitingOn: 'Telco IT', chaseOn: iso(0) }),
+          task('s', 'Snoozed bill', 0, { snoozedUntil: iso(2) }),
+        ],
+        reminders: REMINDERS_ON,
+      }),
+    );
     await page.goto('dashboard');
-    await toasts(page).getByRole('button', { name: 'Open task' }).click();
-    await expect(drawer(page).locator('textarea').first()).toHaveValue('Book flights');
+    await expect(toasts(page)).toContainText('Ledger · 1 to chase');
+    await expect(toasts(page)).toContainText('To chase: Settlement file (Telco IT)');
+    await expect(toasts(page)).not.toContainText('Snoozed bill');
+    await page.getByRole('button', { name: 'Reminders (1)' }).click();
+    const panel = page.getByRole('dialog', { name: 'Reminders' });
+    await expect(panel).toContainText('To chase');
+    await expect(panel).toContainText('chase today');
+    await panel.getByRole('button', { name: /Settlement file/ }).click();
+    await expect(drawer(page).getByLabel('Waiting on')).toHaveValue('Telco IT');
   });
 
-  test('Dismiss is remembered across reloads; Snooze hides a reminder for an hour', async ({ page }) => {
+  test('Snooze 1h hides the digest for an hour; Dismiss is remembered across reloads', async ({ page }) => {
     await seed(page, stored({ tasks: dueSoon(), reminders: REMINDERS_ON }));
     await page.goto('dashboard');
-    const lead = toasts(page).locator('div').filter({ hasText: /^Reminder/ }).first();
-    await lead.getByRole('button', { name: 'Dismiss' }).click();
     await toasts(page).getByRole('button', { name: 'Snooze 1h' }).click();
     await expect(toasts(page)).toHaveCount(0);
 
@@ -44,7 +59,7 @@ test.describe('reminders and notifications (local-only build)', () => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expect(toasts(page)).toHaveCount(0);
 
-    // Make the snooze expire: the digest comes back, the dismissed reminder doesn't.
+    // Make the snooze expire: the digest comes back.
     await page.evaluate(() => {
       const log = JSON.parse(localStorage.getItem('ledger-reminders') ?? '{}');
       for (const entry of Object.values(log) as { snoozeUntil?: number }[]) {
@@ -54,7 +69,12 @@ test.describe('reminders and notifications (local-only build)', () => {
     });
     await page.reload();
     await expect(toasts(page)).toContainText('1 due today');
-    await expect(toasts(page)).not.toContainText('Book flights');
+    await toasts(page).getByRole('button', { name: 'Dismiss' }).click();
+    await expect(toasts(page)).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await page.waitForTimeout(1000);
+    await expect(toasts(page)).toHaveCount(0);
   });
 
   test('nothing pops up before the digest time; reminders arrive once it passes', async ({ page }) => {
@@ -67,10 +87,10 @@ test.describe('reminders and notifications (local-only build)', () => {
     await expect(toasts(page)).toHaveCount(0);
 
     await page.clock.runFor('03:00'); // 08:01 — the minute check picks it up
-    await expect(toasts(page)).toContainText('1 due today, 1 overdue');
+    await expect(toasts(page)).toContainText('1 due today, 1 overdue, 1 coming up');
   });
 
-  test('a per-task "Remind me" setting brings a lead reminder forward', async ({ page }) => {
+  test('a per-task "Remind me" setting brings an item into the digest earlier', async ({ page }) => {
     await seed(page, stored({ tasks: [task('trip', 'Renew passport', 3)], reminders: REMINDERS_ON }));
     await page.goto('dashboard');
     await expect(toasts(page)).toHaveCount(0); // default lead is 1 day; this is 3 days away
@@ -78,7 +98,7 @@ test.describe('reminders and notifications (local-only build)', () => {
     await openTaskLink(page, 'trip');
     await drawer(page).locator('select').filter({ hasText: /^Default/ }).selectOption('3');
     await drawer(page).getByRole('button', { name: 'Close', exact: true }).click();
-    await expect(toasts(page)).toContainText('Due in 3 days: Renew passport');
+    await expect(toasts(page)).toContainText('Coming up: Renew passport (in 3d)');
     expect((await savedState(page)).state.tasks[0].remindDaysBefore).toBe(3);
   });
 
@@ -141,8 +161,7 @@ test.describe('reminders and notifications (local-only build)', () => {
     await seed(page, stored({ tasks: dueSoon(), reminders: REMINDERS_ON }));
     await page.goto('dashboard');
     await expect.poll(() => page.evaluate(() => (window as unknown as { __shown: string[] }).__shown)).toEqual([
-      'Ledger · 1 due today, 1 overdue',
-      'Due tomorrow: Book flights',
+      'Ledger · 1 due today, 1 overdue, 1 coming up',
     ]);
 
     await page.reload();
@@ -154,7 +173,7 @@ test.describe('reminders and notifications (local-only build)', () => {
     await captureNotifications(page);
     await seed(page, stored({ tasks: dueSoon(), reminders: { ...REMINDERS_ON, privateNotifications: true } }));
     await page.goto('dashboard');
-    await expect.poll(() => shownTitles(page)).toEqual(['Ledger · 1 due today, 1 overdue', 'Ledger · A task is due tomorrow']);
+    await expect.poll(() => shownTitles(page)).toEqual(['Ledger · 1 due today, 1 overdue, 1 coming up']);
   });
 
   test('private notifications are on by default and can be turned off in Settings', async ({ page }) => {

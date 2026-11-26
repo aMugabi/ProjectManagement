@@ -93,6 +93,25 @@ export function withDetail(t: Task, key: string, value: string): Task {
   return next;
 }
 
+/** Who the item waits on; clearing it clears the chase date too (there is no one left to chase). */
+export function withWaiting(t: Task, waitingOn: string): Task {
+  const next: Task = { ...t };
+  if (waitingOn.trim()) next.waitingOn = waitingOn;
+  else {
+    delete next.waitingOn;
+    delete next.chaseOn;
+  }
+  return next;
+}
+
+/** The item with its chase date or snooze set to an ISO date, or cleared by ''. */
+export function withDate(t: Task, key: 'chaseOn' | 'snoozedUntil', iso: string): Task {
+  const next: Task = { ...t };
+  if (iso) next[key] = iso;
+  else delete next[key];
+  return next;
+}
+
 /**
  * Removes a product or partner from a workspace: its pairs go with it, and its items stay,
  * no longer in it (unlike a project, whose tasks are deleted with it). Returns the new lists and
