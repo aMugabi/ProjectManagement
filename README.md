@@ -138,19 +138,24 @@ Add these environment variables to the Vercel project (Production), then redeplo
 
 ### The 15-minute timer
 
-`.github/workflows/reminders.yml` calls `/api/reminders` every 15 minutes (free for public
-repositories). Add a repository secret **`REMINDERS_SECRET`** (GitHub → Settings → Secrets and
-variables → Actions) with the same value as in Vercel. To point it at another deploy, set a
-repository variable `LEDGER_URL`. Trigger a run by hand from the Actions tab (*Send reminders →
-Run workflow*). GitHub may start scheduled runs a few minutes late; each reminder and each day's
-email is still sent at most once.
+Something has to call `POST /api/reminders` every 15 minutes; each reminder and each day's email
+is sent at most once, however often it is called.
+
+- **Upstash QStash (the main timer).** A QStash schedule calling
+  `https://<your deploy>/api/reminders` with cron `*/15 * * * *`. The endpoint checks QStash's
+  signature with `QSTASH_CURRENT_SIGNING_KEY` and `QSTASH_NEXT_SIGNING_KEY` (from the QStash
+  console; add both to Vercel and redeploy).
+- **GitHub Actions (a backup).** `.github/workflows/reminders.yml` calls the endpoint on the same
+  schedule with `Authorization: Bearer $REMINDERS_SECRET`. Add a repository secret
+  **`REMINDERS_SECRET`** (GitHub → Settings → Secrets and variables → Actions) with the same value
+  as in Vercel; without it the run fails. GitHub starts scheduled runs late, often by hours and only
+  a few times a day on a quiet repository, which is why QStash is the main timer. Trigger a run by
+  hand from the Actions tab (*Send reminders → Run workflow*); set a repository variable
+  `LEDGER_URL` to point it at another deploy.
 
 If the morning email can't be sent, the endpoint answers 502 and that run fails, so GitHub emails
 whoever last edited the workflow's schedule (keep *Actions* notifications on under GitHub →
 Settings → Notifications). The next run retries the email.
-
-Alternatively, an Upstash QStash schedule can call the same endpoint (it verifies the
-`QSTASH_CURRENT_SIGNING_KEY` / `QSTASH_NEXT_SIGNING_KEY` signature).
 
 ## Stack
 
