@@ -20,3 +20,7 @@ export const SESSION_PREFIX = `${KEY_PREFIX}session:`;
 /** Prefixes for the login rate limiters. */
 export const LOGIN_IP_PREFIX = `${KEY_PREFIX}login-ip`;
 export const LOGIN_ALL_PREFIX = `${KEY_PREFIX}login-all`;
+/** Prefix for "this authenticator time step was already used to sign in" markers (see _lib/mfa.ts). */
+export const TOTP_USED_PREFIX = `${KEY_PREFIX}totp-used:`;
+/** Prefix for "this recovery code was already used" markers; they never expire. */
+export const RECOVERY_USED_PREFIX = `${KEY_PREFIX}recovery-used:`;

@@ -1,5 +1,5 @@
 import { expect, openSettings, savedState, seed, stored, task, test } from '../fixtures';
-import { FakeCloud, PASSWORD, SESSION } from '../fakeCloud';
+import { FakeCloud, MFA_CODE, PASSWORD, SESSION } from '../fakeCloud';
 
 let cloud: FakeCloud;
 test.beforeEach(async ({ context }) => {
@@ -22,6 +22,39 @@ test.describe('cloud build: sign-in and sessions', () => {
     await unlock(page).click();
     await expect(page.getByText('Incorrect password')).toBeVisible();
     await expect(page.getByPlaceholder('Password')).toHaveValue('');
+  });
+
+  test('without MFA set up, asks for the password only', async ({ page }) => {
+    cloud.state = stored();
+    await seed(page, null);
+    await page.goto('dashboard');
+    await expect(unlock(page)).toBeVisible();
+    await expect(page.getByLabel('Authenticator code')).toHaveCount(0);
+    await page.getByPlaceholder('Password').fill(PASSWORD);
+    await unlock(page).click();
+    await expect(unlock(page)).toHaveCount(0);
+    expect(cloud.loginBodies).toEqual([{ password: PASSWORD }]);
+  });
+
+  test('with MFA, asks for a code and refuses a wrong one without saying which part was wrong', async ({ page }) => {
+    cloud.mfa = true;
+    cloud.state = stored({ tasks: [task('c', 'From the cloud', 1)] });
+    await seed(page, null);
+    await page.goto('tasks');
+    const code = page.getByLabel('Authenticator code');
+    await expect(code).toBeVisible();
+    await page.getByPlaceholder('Password').fill(PASSWORD);
+    await expect(unlock(page)).toBeDisabled(); // the code is required
+    await code.fill('000000');
+    await unlock(page).click();
+    await expect(page.getByText('Incorrect password or code')).toBeVisible();
+    await expect(code).toHaveValue('');
+
+    await page.getByPlaceholder('Password').fill(PASSWORD);
+    await code.fill(` ${MFA_CODE} `);
+    await unlock(page).click();
+    await expect(page.getByText('From the cloud')).toBeVisible();
+    expect(cloud.loginBodies.at(-1)).toEqual({ password: PASSWORD, code: MFA_CODE });
   });
 
   test('explains when there have been too many attempts', async ({ page }) => {

@@ -10,6 +10,7 @@
     "test": "vitest run",
     "preview": "vite preview",
     "hash-password": "node scripts/hash-password.mjs",
+    "setup-mfa": "node scripts/setup-mfa.mjs",
     "test:e2e": "playwright test"
   },
   "dependencies": {

@@ -49,12 +49,26 @@ function setToken(token: string | null) {
 
 export type LoginResult = 'ok' | 'incorrect' | 'rate-limited' | 'unavailable';
 
-export async function login(password: string): Promise<LoginResult> {
+/**
+ * Whether sign-in needs an authenticator or recovery code as well as the password.
+ * null when the server can't be reached (the form then offers the code field anyway).
+ */
+export async function mfaRequired(): Promise<boolean | null> {
+  try {
+    const res = await fetch('/api/login');
+    if (!res.ok) return null;
+    return ((await res.json()) as { mfa?: boolean }).mfa === true;
+  } catch {
+    return null;
+  }
+}
+
+export async function login(password: string, code?: string): Promise<LoginResult> {
   try {
     const res = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify(code ? { password, code } : { password }),
     });
     if (res.status === 429) return 'rate-limited';
     if (res.status === 401) return 'incorrect';

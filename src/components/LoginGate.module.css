@@ -52,6 +52,18 @@
   border-color: var(--accent);
 }
 
+.code {
+  margin-top: 10px;
+  letter-spacing: 0.08em;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: 11.5px;
+  margin-top: 6px;
+  text-align: center;
+}
+
 .error {
   color: var(--overdue-text);
   font-size: 12px;

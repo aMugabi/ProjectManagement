@@ -1,5 +1,6 @@
 import { Ratelimit } from '@upstash/ratelimit';
 import { LOGIN_ALL_PREFIX, LOGIN_IP_PREFIX, PUSH_SUBS_KEY } from './_lib/keys.js';
+import { checkSecondFactor, mfaConfigured } from './_lib/mfa.js';
 import { isLegacyHash, verifyPassword } from './_lib/password.js';
 import { bearerToken, createSession, kv, requireSession, revokeAllSessions, revokeSession } from './_lib/session.js';
 
@@ -14,11 +15,18 @@ function clientIp(req: any): string {
 }
 
 /**
- * POST { password } → { token } — a random session token, not the password or its hash.
+ * GET → { mfa } — whether sign-in needs an authenticator or recovery code (so the form can ask).
+ * POST { password, code? } → { token } — a random session token, not the password or its hash.
+ *   With MFA on, a wrong password and a wrong code get the same answer, so neither is confirmed alone.
  * DELETE → signs this session out; DELETE ?all=1 signs out every device and drops every push
  * subscription.
  */
 export default async function handler(req: any, res: any) {
+  if (req.method === 'GET') {
+    res.status(200).json({ mfa: mfaConfigured() });
+    return;
+  }
+
   if (req.method === 'POST') {
     const stored = process.env.AUTH_PASSWORD_HASH;
     if (!stored) {
@@ -36,9 +44,12 @@ export default async function handler(req: any, res: any) {
     } catch {
       body = null;
     }
-    const password = (body as { password?: unknown } | null)?.password;
-    if (typeof password !== 'string' || !password || !verifyPassword(password, stored)) {
-      res.status(401).json({ error: 'incorrect password' });
+    const { password, code } = (body ?? {}) as { password?: unknown; code?: unknown };
+    const mfa = mfaConfigured();
+    const passwordOk = typeof password === 'string' && Boolean(password) && verifyPassword(password, stored);
+    // The code is only checked (and so only used up) once the password is right.
+    if (!passwordOk || (mfa && !(await checkSecondFactor(code)))) {
+      res.status(401).json({ error: mfa ? 'incorrect password or code' : 'incorrect password' });
       return;
     }
     if (isLegacyHash(stored)) {

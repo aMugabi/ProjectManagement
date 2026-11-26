@@ -5,6 +5,8 @@ import { STATE_VERSION, type StoredState } from '../src/shared/state';
 
 export const PASSWORD = 'correct horse';
 export const SESSION = 'session-token-1';
+/** With `mfa` on, the authenticator code the fake accepts (reusable here; the real check is unit-tested). */
+export const MFA_CODE = '123456';
 
 interface PushSub {
   endpoint: string;
@@ -34,6 +36,9 @@ export class FakeCloud {
   testEmails: string[] = [];
   /** When set, /api/email answers 502 with this reason. */
   emailError: string | null = null;
+  /** Sign-in needs MFA_CODE as well as the password. */
+  mfa = false;
+  loginBodies: { password?: string; code?: string }[] = [];
 
   async install(context: BrowserContext) {
     await context.route('**/api/**', (route) => this.handle(route));
@@ -54,9 +59,13 @@ export class FakeCloud {
     const token = (req.headers()['authorization'] ?? '').replace(/^Bearer /, '');
     const authed = this.sessions.has(token);
 
+    if (url.pathname === '/api/login' && method === 'GET') return this.json(route, 200, { mfa: this.mfa });
     if (url.pathname === '/api/login' && method === 'POST') {
+      this.loginBodies.push(body);
       if (++this.loginAttempts > 5) return this.json(route, 429, { error: 'too many attempts' });
-      if (body?.password !== PASSWORD) return this.json(route, 401, { error: 'incorrect password' });
+      if (body?.password !== PASSWORD || (this.mfa && body?.code !== MFA_CODE)) {
+        return this.json(route, 401, { error: this.mfa ? 'incorrect password or code' : 'incorrect password' });
+      }
       const fresh = `session-${this.sessions.size + 1}`;
       this.sessions.add(fresh);
       return this.json(route, 200, { token: fresh });
