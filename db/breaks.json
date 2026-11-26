@@ -260,19 +260,9 @@
   "replace": "  check (true)\n"
  },
  {
-  "name": "any task status",
-  "find": "check (type <> 'task' or status in ('todo', 'doing', 'blocked', 'done'))",
-  "replace": "check (true)"
- },
- {
   "name": "any priority",
   "find": "priority text not null default 'med' check (priority in ('high', 'med', 'low')),",
   "replace": "priority text not null default 'med',"
- },
- {
-  "name": "any item type",
-  "find": "type text not null default 'task' references item_types,",
-  "replace": "type text not null default 'task',"
  },
  {
   "name": "client id not unique per workspace",

@@ -1,0 +1,142 @@
+[
+ {
+  "name": "statuses not checked per type",
+  "find": "alter table items add constraint items_status_for_type foreign key (type, status) references item_statuses (type, status);",
+  "replace": ""
+ },
+ {
+  "name": "old task-only rule kept",
+  "find": "alter table items drop constraint items_check;\n",
+  "replace": ""
+ },
+ {
+  "name": "a risk status missing",
+  "find": "('risk', 'open', 'Open', false, 1), ",
+  "replace": ""
+ },
+ {
+  "name": "a type missing",
+  "find": "('risk', 'Risk'), ",
+  "replace": ""
+ },
+ {
+  "name": "pair not required for both",
+  "find": "  add constraint items_pair_exists foreign key (workspace_id, product_id, partner_id) references product_partners (workspace_id, product_id, partner_id),\n",
+  "replace": ""
+ },
+ {
+  "name": "project and product at once",
+  "find": "  add constraint items_one_home check (project_id is null or (product_id is null and partner_id is null));",
+  "replace": "  add constraint items_one_home check (true);"
+ },
+ {
+  "name": "item product from another workspace",
+  "find": "add constraint items_product_in_workspace foreign key (workspace_id, product_id) references products (workspace_id, id),",
+  "replace": "add constraint items_product_in_workspace foreign key (product_id) references products (id),"
+ },
+ {
+  "name": "item partner from another workspace",
+  "find": "add constraint items_partner_in_workspace foreign key (workspace_id, partner_id) references partners (workspace_id, id),",
+  "replace": "add constraint items_partner_in_workspace foreign key (partner_id) references partners (id),"
+ },
+ {
+  "name": "pair partner from another workspace",
+  "find": "  foreign key (workspace_id, partner_id) references partners (workspace_id, id)\n);",
+  "replace": "  foreign key (partner_id) references partners (id)\n);"
+ },
+ {
+  "name": "pair product from another workspace",
+  "find": "  foreign key (workspace_id, product_id) references products (workspace_id, id),\n  foreign key (workspace_id, partner_id) references partners (workspace_id, id)\n);",
+  "replace": "  foreign key (product_id) references products (id),\n  foreign key (workspace_id, partner_id) references partners (workspace_id, id)\n);"
+ },
+ {
+  "name": "RLS off: products",
+  "find": "alter table products enable row level security;\n",
+  "replace": ""
+ },
+ {
+  "name": "policy open: products",
+  "find": "on products\n  using (workspace_id = any ((select app.workspace_ids())::uuid[])) with check",
+  "replace": "on products\n  using (true) with check"
+ },
+ {
+  "name": "check open: products",
+  "find": "on products\n  using (workspace_id = any ((select app.workspace_ids())::uuid[])) with check (workspace_id = any ((select app.workspace_ids())::uuid[]));",
+  "replace": "on products\n  using (workspace_id = any ((select app.workspace_ids())::uuid[])) with check (true);"
+ },
+ {
+  "name": "RLS off: partners",
+  "find": "alter table partners enable row level security;\n",
+  "replace": ""
+ },
+ {
+  "name": "policy open: partners",
+  "find": "on partners\n  using (workspace_id = any ((select app.workspace_ids())::uuid[])) with check",
+  "replace": "on partners\n  using (true) with check"
+ },
+ {
+  "name": "check open: partners",
+  "find": "on partners\n  using (workspace_id = any ((select app.workspace_ids())::uuid[])) with check (workspace_id = any ((select app.workspace_ids())::uuid[]));",
+  "replace": "on partners\n  using (workspace_id = any ((select app.workspace_ids())::uuid[])) with check (true);"
+ },
+ {
+  "name": "RLS off: product_partners",
+  "find": "alter table product_partners enable row level security;\n",
+  "replace": ""
+ },
+ {
+  "name": "policy open: product_partners",
+  "find": "on product_partners\n  using (workspace_id = any ((select app.workspace_ids())::uuid[])) with check",
+  "replace": "on product_partners\n  using (true) with check"
+ },
+ {
+  "name": "check open: product_partners",
+  "find": "on product_partners\n  using (workspace_id = any ((select app.workspace_ids())::uuid[])) with check (workspace_id = any ((select app.workspace_ids())::uuid[]));",
+  "replace": "on product_partners\n  using (workspace_id = any ((select app.workspace_ids())::uuid[])) with check (true);"
+ },
+ {
+  "name": "products and partners: any column updatable",
+  "find": "grant update (name, color, sort_order, edited_at, deleted_at) on products, partners to ledger_app;",
+  "replace": "grant update on products, partners to ledger_app;"
+ },
+ {
+  "name": "pairs: any column updatable",
+  "find": "grant update (edited_at, deleted_at) on product_partners to ledger_app;",
+  "replace": "grant update on product_partners to ledger_app;"
+ },
+ {
+  "name": "item product and partner not updatable",
+  "find": "grant update (product_id, partner_id) on items to ledger_app;",
+  "replace": ""
+ },
+ {
+  "name": "app may delete products",
+  "find": "grant select, insert on products, partners, product_partners to ledger_app;",
+  "replace": "grant select, insert, delete on products, partners, product_partners to ledger_app;"
+ },
+ {
+  "name": "statuses not readable",
+  "find": "grant select on item_statuses to ledger_app;\n",
+  "replace": ""
+ },
+ {
+  "name": "not logged: products",
+  "find": "create trigger log_products after insert or update or delete on products\n  for each row execute function app.log_change('workspace_id', 'id');\n",
+  "replace": ""
+ },
+ {
+  "name": "not logged: partners",
+  "find": "create trigger log_partners after insert or update or delete on partners\n  for each row execute function app.log_change('workspace_id', 'id');\n",
+  "replace": ""
+ },
+ {
+  "name": "not logged: product_partners",
+  "find": "create trigger log_product_partners after insert or update or delete on product_partners\n  for each row execute function app.log_change('workspace_id', 'id');\n",
+  "replace": ""
+ },
+ {
+  "name": "updated_at not stamped on products",
+  "find": "create trigger touch_products before update on products for each row execute function app.touch_updated_at();\n",
+  "replace": ""
+ }
+]

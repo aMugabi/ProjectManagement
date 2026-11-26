@@ -7,8 +7,10 @@ in Upstash Redis. The move is planned in the build plan (Step 1a), with a dry ru
 - `tests/*_test.sql`: pgTAP tests, each in its own rolled-back transaction, sharing
   `tests/_fixture.sql` (two users, two workspaces, and `as_app()`, which runs one statement as the
   app role for a given user).
-- `breaks.json`: one deliberate break per rule in `0001_foundation.sql`. Every one must make a test
-  fail (61 of 61 at the time of writing).
+- `breaks.json` (0001) and `breaks-0002.json` (0002): one deliberate break per rule. Every one must
+  make a test fail. Two 0001 rules are left out because 0002 replaces or shadows them: the task-only
+  status check (dropped by 0002) and the known-type check (0002's status table refuses unknown
+  types too).
 
 ## Rules the database enforces
 - **Workspace walls.** The app connects as a member of `ledger_app`, which owns nothing and can't
@@ -48,7 +50,9 @@ touch "$SOCK/stop"
 ```
 Each run uses its own users, so runs can share one served database. `db/code-breaks.json` (the
 converter) and `db/code-breaks-db.json` (reading, writing, the import) break the code on purpose;
-run them with the skill's `break-code.py` (the second inside the namespace above).
+run them with the skill's `break-code.py` (the second inside the namespace above). Left out as
+shadowed: sync stripping `legacy_*` keys from uploads (each type's schema already refuses unknown
+fields).
 
 ## Moving the data (Step 1a)
 1. `npm run backup`, then `npm run backup -- --verify FILE`.

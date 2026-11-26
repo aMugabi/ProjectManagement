@@ -5,7 +5,7 @@ select plan(8);
 
 select throws_ok($$insert into items (workspace_id, owner_id, client_id, title, status) values
   ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000000a', 'c1', 'C', 'maybe')$$,
-  '23514', null, 'A task''s status is one of todo, doing, blocked, done');
+  '23503', null, 'A task''s status is one of todo, doing, blocked, done');
 select throws_ok($$insert into items (workspace_id, owner_id, client_id, title, status, priority) values
   ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000000a', 'c2', 'C', 'todo', 'urgent')$$,
   '23514', null, 'Priority is high, med or low');

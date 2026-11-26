@@ -23,7 +23,7 @@ select is(pg_temp.as_app('00000000-0000-0000-0000-00000000000a',
 select is(pg_temp.as_app('00000000-0000-0000-0000-00000000000a', 'select string_agg(reminders->>''digestTime'', '','') from user_settings'), '08:00', 'A sees only A''s own settings');
 select is(pg_temp.as_app('00000000-0000-0000-0000-00000000000a', 'select string_agg(left(endpoint_hash, 1), '','') from push_subscriptions'), 'a', 'and only A''s push subscriptions');
 select is(pg_temp.as_app('00000000-0000-0000-0000-00000000000a', 'select string_agg(reminder_key, '','') from reminders_sent'), 'digest:a', 'and only A''s sent reminders');
-select is(pg_temp.as_app('00000000-0000-0000-0000-00000000000a', 'select string_agg(type, '','') from item_types'), 'task', 'Item types are shared reference data');
+select is(pg_temp.as_app('00000000-0000-0000-0000-00000000000a', 'select count(*)::text from item_types'), '6', 'Item types are shared reference data');
 
 -- Changing and creating
 select is(pg_temp.as_app('00000000-0000-0000-0000-00000000000a',
@@ -82,7 +82,7 @@ select matches(pg_temp.as_app(null, 'select app.create_workspace(''w3'', ''Nobod
 select is((select rolbypassrls from pg_roles where rolname = 'ledger_app'), false, 'ledger_app can''t bypass row-level security');
 select is((select string_agg(relname, ',' order by relname) from pg_class
             where relkind = 'r' and relnamespace = 'public'::regnamespace and not relrowsecurity),
-  'identities,item_types,login_attempts,mfa_factors,sessions,used_codes,users',
+  'identities,item_statuses,item_types,login_attempts,mfa_factors,sessions,used_codes,users',
   'Every table has row-level security except the sign-in tables and shared reference data');
 
 select * from finish();
