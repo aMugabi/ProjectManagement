@@ -1,4 +1,14 @@
-export type Status = 'todo' | 'doing' | 'blocked' | 'done';
+export type TaskStatus = 'todo' | 'doing' | 'blocked' | 'done';
+/** The kinds of item (build plan Step 1b). An item with no type is a task. See src/shared/itemTypes.ts. */
+export type ItemType = 'task' | 'risk' | 'issue' | 'decision' | 'dependency' | 'change_request';
+/** Any item's status; which ones each type allows is in src/shared/itemTypes.ts. */
+export type Status =
+  | TaskStatus
+  | 'open' | 'mitigating' | 'closed' // risk
+  | 'in_progress' | 'resolved' // issue (with open)
+  | 'proposed' | 'decided' | 'superseded' // decision
+  | 'waiting' | 'at_risk' | 'met' // dependency
+  | 'draft' | 'submitted' | 'approved' | 'rejected' | 'implemented'; // change request
 export type Priority = 'high' | 'med' | 'low';
 export type Recurring = 'weekly' | 'monthly' | 'yearly' | null;
 
@@ -7,9 +17,21 @@ export interface Subtask {
   done: boolean;
 }
 
+/**
+ * One item: a task, or (with `type`) a risk, issue, decision, dependency or change request. It
+ * belongs to a plain `project`, or to a `product` and/or a `partner`, or to none of them.
+ */
 export interface Task {
   id: string;
+  /** A plain project's id ('' when the item belongs to a product or partner, or to nothing). */
   project: string;
+  /** Absent: a task. */
+  type?: ItemType;
+  /** The product and/or partner it belongs to (ids in the same workspace); absent or '' = none. */
+  product?: string;
+  partner?: string;
+  /** The type's own fields (e.g. a risk's likelihood and impact), checked by src/shared/itemSchemas.ts. */
+  details?: Record<string, unknown>;
   title: string;
   status: Status;
   priority: Priority;
@@ -36,6 +58,18 @@ export interface Project {
   updatedAt: number;
 }
 
+/** Products and partners have the same shape as projects: a name and a colour. */
+export type Product = Project;
+export type Partner = Project;
+
+/** A product and a partner that work together; its id is `${product}+${partner}`. */
+export interface ProductPartner {
+  id: string;
+  product: string;
+  partner: string;
+  updatedAt: number;
+}
+
 export interface Workspace {
   id: string;
   name: string;
@@ -46,6 +80,9 @@ export interface Workspace {
 export interface WorkspaceSnapshot {
   projects: Project[];
   tasks: Task[];
+  products: Product[];
+  partners: Partner[];
+  pairs: ProductPartner[];
 }
 
 export interface ReminderSettings {

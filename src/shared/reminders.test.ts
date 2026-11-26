@@ -79,7 +79,7 @@ describe('computeReminders', () => {
         { id: 'default', name: 'Home', updatedAt: 1 },
         { id: 'work', name: 'Work', updatedAt: 1 },
       ],
-      workspaceData: { work: { projects: [], tasks: [task('w', '2026-11-04')] } },
+      workspaceData: { work: { projects: [], tasks: [task('w', '2026-11-04')], products: [], partners: [], pairs: [] } },
     });
     const [r] = computeReminders(s, { date: TODAY, minutes: 600 });
     expect(r).toMatchObject({ key: 'lead:work:w:2026-11-04', body: 'Work', url: 'dashboard?task=w&ws=work' });
@@ -119,5 +119,42 @@ describe('outsideText', () => {
       expect(outsideText(lead, setting)).toEqual({ title: 'Ledger · A task is due in 3 days', body: 'Open Ledger to see it.' });
     }
     expect(digest.title).toBe('Ledger · 1 due today, 1 overdue'); // counts only, no names
+  });
+});
+
+describe('reminders for every item type (Step 1b)', () => {
+  const bank = (tasks: Task[]) =>
+    state([], {
+      workspaces: [{ id: 'default', name: 'My Workspace', updatedAt: 1 }],
+      tasks,
+      products: [{ id: 'loans', name: 'Loans', color: '#000000', updatedAt: 1 }],
+      partners: [{ id: 'telco', name: 'Telco', color: '#000000', updatedAt: 1 }],
+      pairs: [{ id: 'loans+telco', product: 'loans', partner: 'telco', updatedAt: 1 }],
+    });
+
+  it("leaves out finished items of every type, by each type's own finished statuses", () => {
+    const a = attentionTasks(
+      bank([
+        task('closed-risk', TODAY, { type: 'risk', status: 'closed', project: '' }),
+        task('open-risk', TODAY, { type: 'risk', status: 'open', project: '' }),
+        task('decided', TODAY, { type: 'decision', status: 'decided', project: '' }),
+        task('approved-cr', TODAY, { type: 'change_request', status: 'approved', project: '' }), // still to implement
+      ]),
+      TODAY,
+    );
+    expect(a.today.map((r) => r.task.id)).toEqual(['approved-cr', 'open-risk']);
+  });
+
+  it('names an item by its product and partner when it has no project', () => {
+    const a = attentionTasks(
+      bank([
+        task('both', TODAY, { project: '', product: 'loans', partner: 'telco' }),
+        task('product', TODAY, { project: '', product: 'loans' }),
+        task('partner', TODAY, { project: '', partner: 'telco' }),
+        task('plain', TODAY, { project: 'p' }),
+      ]),
+      TODAY,
+    );
+    expect(Object.fromEntries(a.today.map((r) => [r.task.id, r.projectName]))).toEqual({ both: 'Loans · Telco', product: 'Loans', partner: 'Telco', plain: 'Home' });
   });
 });

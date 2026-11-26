@@ -6,6 +6,7 @@
  */
 import type { Task, Workspace } from '../types.js';
 import { daysBetween } from './date.js';
+import { isDone } from './itemTypes.js';
 import { allWorkspaceData, ownEntry, type SyncedState } from './state.js';
 
 /** The current calendar date and minute of the day, in the user's time zone. */
@@ -17,6 +18,7 @@ export interface LocalNow {
 export interface TaskRef {
   task: Task;
   workspace: Workspace;
+  /** Where it belongs, for showing: its project's name, or its product's and/or partner's ("Loans · Telco"). */
   projectName: string;
   /** Days until due: negative = overdue, 0 = today. */
   daysLeft: number;
@@ -80,12 +82,19 @@ export function attentionTasks(state: SyncedState, todayIso: string): Attention 
   const result: Attention = { overdue: [], today: [], upcoming: [] };
   const data = allWorkspaceData(state);
   for (const workspace of state.workspaces) {
-    const { tasks = [], projects = [] } = ownEntry(data, workspace.id) ?? {};
-    const projectNames = new Map(projects.map((p) => [p.id, p.name]));
+    const { tasks = [], projects = [], products = [], partners = [] } = ownEntry(data, workspace.id) ?? {};
+    const names = (list: { id: string; name: string }[]) => new Map(list.map((p) => [p.id, p.name]));
+    const projectNames = names(projects);
+    const productNames = names(products);
+    const partnerNames = names(partners);
+    const home = (task: Task) =>
+      projectNames.get(task.project) ??
+      [task.product && productNames.get(task.product), task.partner && partnerNames.get(task.partner)].filter(Boolean).join(' · ');
     for (const task of tasks) {
-      if (task.status === 'done') continue;
+      // Finished items (a closed risk, a decided decision) need no reminder, whatever their status is called.
+      if (isDone(task)) continue;
       const daysLeft = daysBetween(todayIso, task.dueDate);
-      const ref: TaskRef = { task, workspace, projectName: projectNames.get(task.project) ?? '', daysLeft };
+      const ref: TaskRef = { task, workspace, projectName: home(task), daysLeft };
       if (daysLeft < 0) result.overdue.push(ref);
       else if (daysLeft === 0) result.today.push(ref);
       else if (daysLeft <= leadDays(task, state.reminders.defaultLeadDays)) result.upcoming.push(ref);

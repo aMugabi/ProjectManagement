@@ -4,7 +4,7 @@
  * Used by the app on load and by /api/state on every upload.
  */
 import type { WorkspaceSnapshot } from '../types.js';
-import { allWorkspaceData, normalizeState, ownEntry, stripMissingDeps, type SyncedState } from './state.js';
+import { allWorkspaceData, emptySnapshot, normalizeState, ownEntry, stripMissingDeps, type SyncedState } from './state.js';
 
 interface Stamped {
   id: string;
@@ -36,7 +36,7 @@ export function mergeStates(baseRaw: unknown, incomingRaw: unknown, activeWorksp
   const workspaces = mergeItems('workspace', base.workspaces, incoming.workspaces, deleted);
   const baseData = allWorkspaceData(base);
   const incomingData = allWorkspaceData(incoming);
-  const empty: WorkspaceSnapshot = { projects: [], tasks: [] };
+  const empty: WorkspaceSnapshot = emptySnapshot();
 
   const data: Record<string, WorkspaceSnapshot> = {};
   for (const w of workspaces) {
@@ -45,6 +45,10 @@ export function mergeStates(baseRaw: unknown, incomingRaw: unknown, activeWorksp
     data[w.id] = {
       projects: mergeItems(`project:${w.id}`, b.projects, i.projects, deleted),
       tasks: stripMissingDeps(mergeItems(`task:${w.id}`, b.tasks, i.tasks, deleted)),
+      products: mergeItems(`product:${w.id}`, b.products, i.products, deleted),
+      partners: mergeItems(`partner:${w.id}`, b.partners, i.partners, deleted),
+      // Pairs whose product or partner is gone are dropped by normalizeState below.
+      pairs: mergeItems(`pair:${w.id}`, b.pairs, i.pairs, deleted),
     };
   }
 
@@ -54,8 +58,7 @@ export function mergeStates(baseRaw: unknown, incomingRaw: unknown, activeWorksp
   const workspaceData = Object.fromEntries(Object.entries(data).filter(([id]) => id !== active));
 
   return normalizeState({
-    tasks: activeData.tasks,
-    projects: activeData.projects,
+    ...activeData,
     workspaces,
     activeWorkspaceId: active,
     workspaceData,

@@ -76,14 +76,14 @@ describe('mergeStates', () => {
     const local = state([task('h1', 1)], {
       workspaces,
       activeWorkspaceId: 'default',
-      workspaceData: { work: { projects: [], tasks: [task('w1', 1)] } },
+      workspaceData: { work: { projects: [], tasks: [task('w1', 1)], products: [], partners: [], pairs: [] } },
     });
     const remote = normalizeState({
       workspaces,
       activeWorkspaceId: 'work',
       tasks: [task('w1', 1), task('w2', 2)],
       projects: [],
-      workspaceData: { default: { projects: [project], tasks: [task('h1', 1), task('h2', 2)] } },
+      workspaceData: { default: { projects: [project], tasks: [task('h1', 1), task('h2', 2)], products: [], partners: [], pairs: [] } },
     });
     const merged = mergeStates(local, remote, 'default');
     expect(merged.activeWorkspaceId).toBe('default');
@@ -99,7 +99,7 @@ describe('mergeStates', () => {
     ];
     const s = state([], {
       workspaces,
-      workspaceData: { work: { projects: [project], tasks: [] } },
+      workspaceData: { work: { projects: [project], tasks: [], products: [], partners: [], pairs: [] } },
       deleted: { 'project:default:p': T },
     });
     const merged = mergeStates(s, s, 'default');
@@ -112,7 +112,7 @@ describe('mergeStates', () => {
       { id: 'default', name: 'Home', updatedAt: 1 },
       { id: 'constructor', name: 'Constructor', updatedAt: 2 },
     ];
-    const local = state([task('h', 1)], { workspaces, workspaceData: { constructor: { projects: [], tasks: [task('c', 1)] } } });
+    const local = state([task('h', 1)], { workspaces, workspaceData: { constructor: { projects: [], tasks: [task('c', 1)], products: [], partners: [], pairs: [] } } });
     const remote = state([task('h', 1)]); // the cloud hasn't seen the new workspace yet
     const merged = mergeStates(local, remote, 'default');
     expect(ownEntry(merged.workspaceData, 'constructor')?.tasks.map((t) => t.id)).toEqual(['c']);
@@ -133,5 +133,37 @@ describe('mergeStates', () => {
     expect(merged.projects[0].updatedAt).toBe(0);
     expect(merged.reminders.digestTime).toBe('08:00');
     expect(merged.workspaces[0].id).toBe('default');
+  });
+});
+
+describe('mergeStates with products, partners and pairs (Step 1b)', () => {
+  const T = Date.now() - 1000; // recent: deletions older than 60 days are forgotten
+  const group = (id: string, at: number) => ({ id, name: id, color: '#000000', updatedAt: T + at });
+  it('merges them item by item, newest edit winning, and drops a pair whose product is deleted', () => {
+    const base = normalizeState({
+      products: [group('loans', 1), group('cards', 1)],
+      partners: [group('telco', 1)],
+      pairs: [{ id: 'loans+telco', product: 'loans', partner: 'telco', updatedAt: T + 1 }, { id: 'cards+telco', product: 'cards', partner: 'telco', updatedAt: T + 1 }],
+    });
+    const incoming = normalizeState({
+      products: [{ ...group('loans', 5), name: 'Loans renamed' }, group('savings', 5)],
+      partners: [group('telco', 1)],
+      pairs: [{ id: 'loans+telco', product: 'loans', partner: 'telco', updatedAt: T + 1 }],
+      deleted: { 'product:default:cards': T + 9 },
+    });
+    const merged = mergeStates(base, incoming);
+    expect(merged.products.map((p) => [p.id, p.name])).toEqual([['loans', 'Loans renamed'], ['savings', 'savings']]);
+    expect(merged.pairs.map((p) => p.id)).toEqual(['loans+telco']); // cards+telco went with its product
+    expect(merged.deleted['product:default:cards']).toBe(T + 9);
+  });
+
+  it('keeps them per workspace when switching which one is active', () => {
+    const s = normalizeState({
+      workspaces: [{ id: 'default', name: 'D', updatedAt: 1 }, { id: 'bank', name: 'B', updatedAt: 1 }],
+      workspaceData: { bank: { products: [group('loans', 1)], partners: [], pairs: [], projects: [], tasks: [] } },
+    });
+    const onBank = mergeStates(s, s, 'bank');
+    expect(onBank.products.map((p) => p.id)).toEqual(['loans']);
+    expect(onBank.workspaceData.default.products).toEqual([]);
   });
 });

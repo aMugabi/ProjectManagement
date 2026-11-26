@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { Priority, Project, Recurring, ReminderSettings, Status, Task, Workspace, WorkspaceSnapshot } from '../types';
 import { buildSeedTasks, PROJECTS } from '../data/seed';
 import { advanceRecurrence } from '../shared/date';
-import { DEFAULT_REMINDERS, DEFAULT_WORKSPACE, normalizeState, ownEntry, STATE_VERSION, stripDeps, type SyncedState } from '../shared/state';
+import { activeSnapshot, DEFAULT_REMINDERS, DEFAULT_WORKSPACE, emptySnapshot, normalizeState, ownEntry, STATE_VERSION, stripDeps, type SyncedState } from '../shared/state';
 import { CLOUD_ENABLED } from '../lib/cloud';
 import { createCloudStorage, onRemoteState } from '../lib/cloudStorage';
 import { STORE_KEY } from '../lib/deviceData';
@@ -93,6 +93,9 @@ export const useTaskStore = create<TaskStore>()(
     (set) => ({
       tasks: buildSeedTasks(),
       projects: PROJECTS,
+      products: [],
+      partners: [],
+      pairs: [],
       workspaces: [DEFAULT_WORKSPACE],
       activeWorkspaceId: DEFAULT_WORKSPACE.id,
       workspaceData: {},
@@ -110,7 +113,7 @@ export const useTaskStore = create<TaskStore>()(
           const workspace: Workspace = { id, name: trimmed, updatedAt: Date.now() };
           return {
             workspaces: [...s.workspaces, workspace],
-            workspaceData: { ...s.workspaceData, [id]: { projects: [], tasks: [] } },
+            workspaceData: { ...s.workspaceData, [id]: emptySnapshot() },
           };
         }),
 
@@ -123,21 +126,17 @@ export const useTaskStore = create<TaskStore>()(
           };
         }),
 
-      // Swaps the top-level tasks/projects for another workspace's data, stashing the outgoing
-      // workspace's data in workspaceData so it's the only place a non-active workspace lives.
+      // Swaps the top-level data (tasks, projects, products, partners, pairs) for another
+      // workspace's, stashing the outgoing workspace's in workspaceData so it's the only place a
+      // non-active workspace lives.
       setActiveWorkspace: (id) =>
         set((s) => {
           if (id === s.activeWorkspaceId || !s.workspaces.some((w) => w.id === id)) return s;
-          const incoming: WorkspaceSnapshot = ownEntry(s.workspaceData, id) ?? { projects: [], tasks: [] };
+          const incoming: WorkspaceSnapshot = ownEntry(s.workspaceData, id) ?? emptySnapshot();
           const workspaceData = { ...s.workspaceData };
           delete workspaceData[id];
-          workspaceData[s.activeWorkspaceId] = { projects: s.projects, tasks: s.tasks };
-          return {
-            activeWorkspaceId: id,
-            projects: incoming.projects,
-            tasks: incoming.tasks,
-            workspaceData,
-          };
+          workspaceData[s.activeWorkspaceId] = activeSnapshot(s);
+          return { activeWorkspaceId: id, ...activeSnapshot({ ...emptySnapshot(), ...incoming }), workspaceData };
         }),
 
       addProject: (name) =>

@@ -96,9 +96,11 @@ test.describe('local-only build: core task tracking', () => {
     await openTaskLink(page, 'a');
     await drawer(page).getByRole('button', { name: 'Low', exact: true }).click();
     const saved = await savedState(page);
-    expect(saved.version).toBe(3);
+    expect(saved.version).toBe(4);
     expect(saved.state.reminders.digestTime).toBe('08:00');
     expect(saved.state.projects[0].updatedAt).toBe(0);
+    // Step 1b's lists arrive empty, so nothing that reads them finds them missing.
+    expect([saved.state.products, saved.state.partners, saved.state.pairs]).toEqual([[], [], []]);
   });
 
   test('keeps workspaces separate and switches between them', async ({ page }) => {
@@ -107,7 +109,15 @@ test.describe('local-only build: core task tracking', () => {
       stored({
         tasks: [task('h', 'Home chore', 1)],
         workspaces: [DEFAULT_WS, { id: 'work', name: 'Work', updatedAt: 1 }],
-        workspaceData: { work: { projects: [{ ...HOME, id: 'ops', name: 'Ops' }], tasks: [task('w', 'Ship report', 1, { project: 'ops' })] } },
+        workspaceData: {
+          work: {
+            projects: [{ ...HOME, id: 'ops', name: 'Ops' }],
+            tasks: [task('w', 'Ship report', 1, { project: 'ops' })],
+            products: [{ ...HOME, id: 'loans', name: 'Loans' }],
+            partners: [{ ...HOME, id: 'telco', name: 'Telco' }],
+            pairs: [{ id: 'loans+telco', product: 'loans', partner: 'telco', updatedAt: 1 }],
+          },
+        },
       }),
     );
     await page.goto('tasks');
@@ -118,6 +128,11 @@ test.describe('local-only build: core task tracking', () => {
     await page.getByRole('button', { name: 'Work', exact: true }).click();
     await expect(page.getByText('Ship report', { exact: true })).toBeVisible();
     await expect(page.getByText('Home chore', { exact: true })).toHaveCount(0);
+    // The workspace's products, partners and pairs travel with it (Step 1b).
+    await expect.poll(async () => (await savedState(page)).state.activeWorkspaceId).toBe('work');
+    const onWork = (await savedState(page)).state;
+    expect([onWork.products.map((p) => p.id), onWork.partners.map((p) => p.id), onWork.pairs.map((p) => p.id)]).toEqual([['loans'], ['telco'], ['loans+telco']]);
+    expect(onWork.workspaceData.default).toMatchObject({ products: [], partners: [], pairs: [] });
   });
 
   test('list, board and timeline views render the tasks', async ({ page }) => {

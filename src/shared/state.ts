@@ -1,22 +1,39 @@
 /** The synced data shape, shared by the app's store and the /api functions. Pure — no DOM, no React. */
-import type { Project, ReminderSettings, Task, Workspace, WorkspaceSnapshot } from '../types.js';
+import type { Partner, Product, ProductPartner, Project, ReminderSettings, Task, Workspace, WorkspaceSnapshot } from '../types.js';
 
-/** Persisted store version. 3 adds updatedAt stamps, deletion tombstones and reminder settings. */
-export const STATE_VERSION = 3;
+/**
+ * Persisted store version. 3 adds updatedAt stamps, deletion tombstones and reminder settings;
+ * 4 adds products, partners and their pairs (build plan Step 1b), so older saved data is upgraded.
+ */
+export const STATE_VERSION = 4;
 
 /** Tombstones older than this are dropped; a device offline longer than this could resurrect a deleted item. */
 export const TOMBSTONE_TTL_MS = 60 * 24 * 60 * 60 * 1000;
 
-export interface SyncedState {
-  tasks: Task[];
-  projects: Project[];
+/** The active workspace's data sits at the top level (tasks, projects, products, partners, pairs); the others in workspaceData. */
+export interface SyncedState extends WorkspaceSnapshot {
   workspaces: Workspace[];
   activeWorkspaceId: string;
   workspaceData: Record<string, WorkspaceSnapshot>;
-  /** Deletion tombstones: 'task:<workspaceId>:<id>' | 'project:<workspaceId>:<id>' | 'workspace:<id>' → deletion time (ms). */
+  /**
+   * Deletion tombstones → deletion time (ms): 'task:<workspaceId>:<id>' (any item),
+   * 'project:…', 'product:…', 'partner:…', 'pair:<workspaceId>:<product>+<partner>', 'workspace:<id>'.
+   */
   deleted: Record<string, number>;
   reminders: ReminderSettings;
 }
+
+/** A workspace with nothing in it yet. */
+export function emptySnapshot(): WorkspaceSnapshot {
+  return { projects: [], tasks: [], products: [], partners: [], pairs: [] };
+}
+
+/** The active workspace's data, from the top level of the state. */
+export function activeSnapshot(s: WorkspaceSnapshot): WorkspaceSnapshot {
+  return { projects: s.projects, tasks: s.tasks, products: s.products, partners: s.partners, pairs: s.pairs };
+}
+
+export const pairId = (product: string, partner: string) => `${product}+${partner}`;
 
 /** The { state, version } envelope zustand's persist middleware stores, and /api/state holds. */
 export interface StoredState {
@@ -64,7 +81,21 @@ function stamped<T extends { updatedAt?: number }>(items: T[]): (T & { updatedAt
 
 function snapshot(raw: unknown): WorkspaceSnapshot {
   const s = (raw ?? {}) as Partial<WorkspaceSnapshot>;
-  return { projects: stamped(asArray<Project>(s.projects)), tasks: stripMissingDeps(stamped(asArray<Task>(s.tasks))) };
+  const products = stamped(asArray<Product>(s.products));
+  const partners = stamped(asArray<Partner>(s.partners));
+  const productIds = new Set(products.map((p) => p.id));
+  const partnerIds = new Set(partners.map((p) => p.id));
+  // A pair needs both ends in this workspace; its id is always product+partner.
+  const pairs = stamped(asArray<ProductPartner>(s.pairs))
+    .filter((p) => productIds.has(p.product) && partnerIds.has(p.partner))
+    .map((p) => (p.id === pairId(p.product, p.partner) ? p : { ...p, id: pairId(p.product, p.partner) }));
+  return {
+    projects: stamped(asArray<Project>(s.projects)),
+    tasks: stripMissingDeps(stamped(asArray<Task>(s.tasks))),
+    products,
+    partners,
+    pairs,
+  };
 }
 
 /**
@@ -90,10 +121,9 @@ export function normalizeState(raw: unknown, now = Date.now()): SyncedState {
     if (typeof at === 'number' && now - at < TOMBSTONE_TTL_MS) deleted[key] = at;
   }
 
-  const active = snapshot({ projects: s.projects, tasks: s.tasks });
+  const active = snapshot(activeSnapshot(s as WorkspaceSnapshot));
   return {
-    tasks: active.tasks,
-    projects: active.projects,
+    ...active,
     workspaces,
     activeWorkspaceId,
     workspaceData,
@@ -112,5 +142,5 @@ export function ownEntry<T>(record: Record<string, T>, key: string): T | undefin
 
 /** Every workspace's data keyed by workspace id, regardless of which one is active. */
 export function allWorkspaceData(s: SyncedState): Record<string, WorkspaceSnapshot> {
-  return { ...s.workspaceData, [s.activeWorkspaceId]: { projects: s.projects, tasks: s.tasks } };
+  return { ...s.workspaceData, [s.activeWorkspaceId]: activeSnapshot(s) };
 }
