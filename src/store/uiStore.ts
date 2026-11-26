@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Priority } from '../types';
+import type { ItemType, Priority } from '../types';
 
 interface UiStore {
   openId: string | null;
@@ -21,13 +21,16 @@ interface UiStore {
 
   composing: boolean;
   draftTitle: string;
+  /** Where the new item goes (a HomeValue: 'project:<id>', 'product:<id>', …, or '' for nothing). */
   draftProject: string;
+  draftType: ItemType;
   draftPrio: Priority;
   draftDueOffset: number;
   openComposer: () => void;
   closeComposer: () => void;
   setDraftTitle: (v: string) => void;
   setDraftProject: (v: string) => void;
+  setDraftType: (v: ItemType) => void;
   setDraftPrio: (v: Priority) => void;
   setDraftDueOffset: (v: number) => void;
   resetDraftTitle: () => void;
@@ -61,12 +64,14 @@ export const useUiStore = create<UiStore>((set) => ({
   composing: false,
   draftTitle: '',
   draftProject: '',
+  draftType: 'task',
   draftPrio: 'med',
   draftDueOffset: 0,
   openComposer: () => set({ composing: true }),
   closeComposer: () => set({ composing: false }),
   setDraftTitle: (v) => set({ draftTitle: v }),
   setDraftProject: (v) => set({ draftProject: v }),
+  setDraftType: (v) => set({ draftType: v }),
   setDraftPrio: (v) => set({ draftPrio: v }),
   setDraftDueOffset: (v) => set({ draftDueOffset: v }),
   resetDraftTitle: () => set({ draftTitle: '' }),

@@ -1,11 +1,16 @@
 import { useSearchParams } from 'react-router-dom';
-import type { DashLayout, Priority, TaskView } from '../types';
+import type { DashLayout, ItemType, Priority, TaskView } from '../types';
+import { isItemType } from '../shared/itemTypes';
 
 /** Filter & view-mode state, kept in the URL so every view is linkable. */
 export function useFilters() {
   const [params, setParams] = useSearchParams();
 
   const project = params.get('project');
+  const product = params.get('product');
+  const partner = params.get('partner');
+  const typeParam = params.get('type');
+  const type: ItemType | null = isItemType(typeParam) ? typeParam : null;
   const priority = (params.get('priority') as Priority | null) ?? null;
   const search = params.get('q') ?? '';
   const hideDone = params.get('hideDone') !== 'false'; // default true
@@ -28,6 +33,9 @@ export function useFilters() {
 
   return {
     project,
+    product,
+    partner,
+    type,
     priority,
     search,
     hideDone,
@@ -39,6 +47,7 @@ export function useFilters() {
     setHideDone: (v: boolean) => update({ hideDone: v ? null : 'false' }),
     setTaskView: (v: TaskView) => update({ view: v === 'list' ? null : v }),
     setDashLayout: (v: DashLayout) => update({ layout: v === 'focus' ? null : v }),
-    clearProject: () => update({ project: null }),
+    clearProject: () => update({ project: null, product: null, partner: null }),
+    setType: (t: ItemType | null) => update({ type: t }),
   };
 }

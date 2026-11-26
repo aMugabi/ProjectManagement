@@ -13,9 +13,9 @@ describe('advanceRecurrence', () => {
 
 describe('dueMeta', () => {
   it('labels today, tomorrow and late tasks', () => {
-    expect(dueMeta(inDays(0), 'todo')).toMatchObject({ label: 'today', dueToday: true });
-    expect(dueMeta(inDays(1), 'todo').label).toBe('tomorrow');
-    expect(dueMeta(inDays(-2), 'todo')).toMatchObject({ label: '2d late', overdue: true });
-    expect(dueMeta(inDays(-2), 'done').overdue).toBe(false);
+    expect(dueMeta(inDays(0), false)).toMatchObject({ label: 'today', dueToday: true });
+    expect(dueMeta(inDays(1), false).label).toBe('tomorrow');
+    expect(dueMeta(inDays(-2), false)).toMatchObject({ label: '2d late', overdue: true });
+    expect(dueMeta(inDays(-2), true).overdue).toBe(false);
   });
 });

@@ -1,5 +1,7 @@
-import type { Priority, Project, Status, Task } from '../types';
+import type { ItemType, Partner, Priority, Product, Project, Task } from '../types';
 import { offsetFromToday } from '../shared/date';
+import { isDone, phaseOfStatus, typeOf, type Phase } from '../shared/itemTypes';
+import { homeValue } from './items';
 
 export { stripDeps } from '../shared/state';
 
@@ -7,25 +9,59 @@ export interface FilterState {
   project: string | null;
   priority: Priority | null;
   search: string;
+  /** Items in this product (alone or with a partner). */
+  product?: string | null;
+  /** Items with this partner (alone or with a product). */
+  partner?: string | null;
+  type?: ItemType | null;
 }
 
-/** Project + priority + search filters, composed with AND. Used everywhere except hideDone. */
-export function visibleTasks(tasks: Task[], projects: Project[], f: FilterState): Task[] {
+/** The active workspace's projects, products and partners: what an item can belong to. */
+export interface Catalogue {
+  projects: Project[];
+  products: Product[];
+  partners: Partner[];
+}
+
+/** Where an item belongs, for showing: a name and a colour, and the select value it has. */
+export interface Home {
+  value: string;
+  name: string;
+  color: string;
+}
+
+export const NO_HOME: Home = { value: '', name: 'No project', color: 'var(--border-strong)' };
+
+export function homeOf(t: Pick<Task, 'project' | 'product' | 'partner'>, c: Catalogue): Home {
+  const project = t.project ? c.projects.find((p) => p.id === t.project) : undefined;
+  if (project) return { value: homeValue(t), name: project.name, color: project.color };
+  const product = t.product ? c.products.find((p) => p.id === t.product) : undefined;
+  const partner = t.partner ? c.partners.find((p) => p.id === t.partner) : undefined;
+  if (product && partner) return { value: homeValue(t), name: `${product.name} · ${partner.name}`, color: product.color };
+  if (product) return { value: `product:${product.id}`, name: product.name, color: product.color };
+  if (partner) return { value: `partner:${partner.id}`, name: partner.name, color: partner.color };
+  return NO_HOME;
+}
+
+/** Project, product, partner, type, priority and search filters, composed with AND. Used everywhere except hideDone. */
+export function visibleTasks(tasks: Task[], c: Catalogue, f: FilterState): Task[] {
   const q = f.search.trim().toLowerCase();
-  const projectById = new Map(projects.map((p) => [p.id, p]));
   return tasks.filter((t) => {
     if (f.project && t.project !== f.project) return false;
+    if (f.product && t.product !== f.product) return false;
+    if (f.partner && t.partner !== f.partner) return false;
+    if (f.type && typeOf(t) !== f.type) return false;
     if (f.priority && t.priority !== f.priority) return false;
     if (q) {
-      const projectName = projectById.get(t.project)?.name.toLowerCase() ?? '';
-      if (!t.title.toLowerCase().includes(q) && !projectName.includes(q)) return false;
+      const home = homeOf(t, c).name.toLowerCase();
+      if (!t.title.toLowerCase().includes(q) && !home.includes(q)) return false;
     }
     return true;
   });
 }
 
 export function withoutDone(tasks: Task[]): Task[] {
-  return tasks.filter((t) => t.status !== 'done');
+  return tasks.filter((t) => !isDone(t));
 }
 
 export function sortByDue(tasks: Task[]): Task[] {
@@ -36,29 +72,32 @@ export function sortByOrder(tasks: Task[]): Task[] {
   return [...tasks].sort((a, b) => a.order - b.order);
 }
 
-/** A task is blocked whenever it has a dependency that isn't done — 'blocked' is derived, not chosen. */
+/** An item is blocked whenever it has a dependency that isn't finished (or no longer exists) — derived, not chosen. */
 export function isDepBlocked(task: Task, tasks: Task[]): boolean {
   if (!task.deps.length) return false;
   const byId = new Map(tasks.map((t) => [t.id, t]));
-  return task.deps.some((id) => byId.get(id)?.status !== 'done');
+  return task.deps.some((id) => {
+    const dep = byId.get(id);
+    return !dep || !isDone(dep);
+  });
 }
 
-/** The status to display/group by: raw status, except dependency-blocked tasks always read as 'blocked'. */
-export function effectiveStatus(task: Task, tasks: Task[]): Status {
-  if (task.status === 'done') return 'done';
-  return isDepBlocked(task, tasks) ? 'blocked' : task.status;
-}
-
-export function projectById(projects: Project[], id: string): Project {
-  return projects.find((p) => p.id === id) ?? projects[0];
+/** Where an item stands, whatever its type (the board's columns): finished stays finished; unfinished dependencies block. */
+export function phaseOf(task: Task, tasks: Task[]): Phase {
+  if (isDone(task)) return 'done';
+  return isDepBlocked(task, tasks) ? 'blocked' : phaseOfStatus(task);
 }
 
 export function subtaskProgress(t: Task): { done: number; total: number } {
   return { done: t.subs.filter((s) => s.done).length, total: t.subs.length };
 }
 
+/** A project, product or partner, for the dashboard's health lists. */
+export type GroupKind = 'project' | 'product' | 'partner';
+
 export interface ProjectStats {
   project: Project;
+  kind: GroupKind;
   total: number;
   done: number;
   percent: number;
@@ -66,13 +105,15 @@ export interface ProjectStats {
   nextTask: Task | null;
 }
 
-export function projectStats(tasks: Task[], project: Project): ProjectStats {
-  const forProject = tasks.filter((t) => t.project === project.id);
-  const done = forProject.filter((t) => t.status === 'done').length;
-  const open = sortByDue(forProject.filter((t) => t.status !== 'done'));
+/** How a project, product or partner is doing: its items (a product's or partner's include their pairs'). */
+export function projectStats(tasks: Task[], project: Project, kind: GroupKind = 'project'): ProjectStats {
+  const forProject = tasks.filter((t) => t[kind] === project.id);
+  const done = forProject.filter((t) => isDone(t)).length;
+  const open = sortByDue(forProject.filter((t) => !isDone(t)));
   const overdueCount = open.filter((t) => offsetFromToday(t.dueDate) < 0).length;
   return {
     project,
+    kind,
     total: forProject.length,
     done,
     percent: forProject.length ? Math.round((done / forProject.length) * 100) : 0,

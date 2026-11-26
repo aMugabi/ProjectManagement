@@ -10,19 +10,21 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { Status, Task } from '../types';
+import type { Task } from '../types';
+import { isDone, ITEM_TYPES, typeOf, type Phase } from '../shared/itemTypes';
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
-import { visibleTasks, sortByOrder, projectById, subtaskProgress, effectiveStatus, isDepBlocked, depTitles } from '../lib/selectors';
+import { visibleTasks, sortByOrder, homeOf, subtaskProgress, phaseOf, isDepBlocked, depTitles } from '../lib/selectors';
 import { PriorityPill } from '../components/shared/PriorityPill';
 import { DuePill } from '../components/shared/DuePill';
 import { ProgressBar } from '../components/shared/ProgressBar';
 import s from './BoardView.module.css';
 
-const STATUSES: Status[] = ['todo', 'doing', 'blocked', 'done'];
+// Columns are phases, so items of every type share them: a risk "mitigating" is in progress.
+const STATUSES: Phase[] = ['todo', 'doing', 'blocked', 'done'];
 
-const COLUMNS: { status: Status; label: string; dot: string }[] = [
+const COLUMNS: { status: Phase; label: string; dot: string }[] = [
   { status: 'todo', label: 'To do', dot: 'var(--todo-dot)' },
   { status: 'doing', label: 'In progress', dot: 'var(--accent)' },
   { status: 'blocked', label: 'Blocked', dot: 'var(--blocked)' },
@@ -30,15 +32,17 @@ const COLUMNS: { status: Status; label: string; dot: string }[] = [
 ];
 
 function BoardCard({ task, allTasks }: { task: Task; allTasks: Task[] }) {
-  const { projects } = useTaskStore();
+  const store = useTaskStore();
   const openDrawer = useUiStore((st) => st.openDrawer);
   const blocked = isDepBlocked(task, allTasks);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     disabled: blocked,
   });
-  const project = projectById(projects, task.project);
+  const project = homeOf(task, store);
   const prog = subtaskProgress(task);
+  const done = isDone(task);
+  const type = typeOf(task);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -57,6 +61,7 @@ function BoardCard({ task, allTasks }: { task: Task; allTasks: Task[] }) {
       <div className={s.topRow}>
         <span className={s.topDot} style={{ background: project.color }} />
         <div className={s.cardTitle}>{task.title}</div>
+        {type !== 'task' && <span className={s.recur}>{ITEM_TYPES[type].label}</span>}
       </div>
       {prog.total > 0 && (
         <div className={s.subProgress}>
@@ -64,7 +69,7 @@ function BoardCard({ task, allTasks }: { task: Task; allTasks: Task[] }) {
         </div>
       )}
       <div className={s.metaRow}>
-        <PriorityPill priority={task.priority} status={task.status} />
+        <PriorityPill priority={task.priority} done={done} />
         {task.recurring && <span className={s.recur}>↻ {task.recurring}</span>}
         {blocked && (
           <span className={s.blockedTag} title={`Waiting on ${depTitles(allTasks, task.deps)}`}>
@@ -72,14 +77,14 @@ function BoardCard({ task, allTasks }: { task: Task; allTasks: Task[] }) {
           </span>
         )}
         <div className={s.metaSpacer} />
-        <DuePill dueDate={task.dueDate} status={task.status} />
+        <DuePill dueDate={task.dueDate} done={done} />
       </div>
     </div>
   );
 }
 
 function BoardColumn({ status, label, dot, tasks, allTasks, isDropTarget }: {
-  status: Status;
+  status: Phase;
   label: string;
   dot: string;
   tasks: Task[];
@@ -106,7 +111,8 @@ function BoardColumn({ status, label, dot, tasks, allTasks, isDropTarget }: {
 }
 
 export function BoardView() {
-  const { tasks, projects, moveTask } = useTaskStore();
+  const store = useTaskStore();
+  const { tasks, moveTask } = store;
   const ui = useUiStore();
   const f = useFilters();
   // A distance threshold keeps a plain click (which opens the drawer) from being read as a drag.
@@ -115,9 +121,9 @@ export function BoardView() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  const filtered = visibleTasks(tasks, projects, f);
+  const filtered = visibleTasks(tasks, store, f);
   const columnTasks = new Map(
-    STATUSES.map((status) => [status, sortByOrder(filtered.filter((t) => effectiveStatus(t, tasks) === status))]),
+    STATUSES.map((status) => [status, sortByOrder(filtered.filter((t) => phaseOf(t, tasks) === status))]),
   );
 
   function handleDragStart(e: DragStartEvent) {
@@ -137,7 +143,7 @@ export function BoardView() {
 
     const overIsColumn = (STATUSES as string[]).includes(String(overId));
     const overTask = overIsColumn ? null : tasks.find((t) => t.id === overId);
-    const destStatus = overIsColumn ? (overId as Status) : overTask ? effectiveStatus(overTask, tasks) : null;
+    const destStatus = overIsColumn ? (overId as Phase) : overTask ? phaseOf(overTask, tasks) : null;
 
     // The Blocked column is derived from dependencies — it isn't a valid manual drop target.
     if (!destStatus || destStatus === 'blocked') return;

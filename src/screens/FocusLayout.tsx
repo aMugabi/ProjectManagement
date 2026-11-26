@@ -3,7 +3,8 @@ import type { Task } from '../types';
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
-import { visibleTasks, withoutDone, sortByDue, projectById, subtaskProgress, projectStats, depTitles, effectiveStatus } from '../lib/selectors';
+import { visibleTasks, withoutDone, sortByDue, homeOf, subtaskProgress, projectStats, depTitles, phaseOf, type GroupKind } from '../lib/selectors';
+import { isDone } from '../shared/itemTypes';
 import { offsetFromToday } from '../shared/date';
 import { Checkbox } from '../components/shared/Checkbox';
 import { PriorityPill } from '../components/shared/PriorityPill';
@@ -12,12 +13,13 @@ import { ProgressBar } from '../components/shared/ProgressBar';
 import s from './Dashboard.module.css';
 
 export function FocusLayout() {
-  const { tasks, projects, toggleDone } = useTaskStore();
+  const store = useTaskStore();
+  const { tasks, projects, products, partners, toggleDone } = store;
   const openDrawer = useUiStore((st) => st.openDrawer);
   const navigate = useNavigate();
   const f = useFilters();
 
-  const open = withoutDone(visibleTasks(tasks, projects, f));
+  const open = withoutDone(visibleTasks(tasks, store, f));
   const needsToday = sortByDue(open.filter((t) => offsetFromToday(t.dueDate) <= 0));
   const restOfWeek = sortByDue(
     open.filter((t) => {
@@ -26,10 +28,12 @@ export function FocusLayout() {
     }),
   );
   const overdueCount = needsToday.filter((t) => offsetFromToday(t.dueDate) < 0).length;
-  const blocked = tasks.filter((t) => effectiveStatus(t, tasks) === 'blocked');
+  const blocked = tasks.filter((t) => phaseOf(t, tasks) === 'blocked');
+  // Health for every project, product and partner (a product's and partner's include their pairs' items).
+  const groups: [GroupKind, typeof projects][] = [['project', projects], ['product', products], ['partner', partners]];
 
-  function goToProject(id: string) {
-    navigate(`/tasks?project=${id}`);
+  function goToProject(id: string, kind: GroupKind = 'project') {
+    navigate(`/tasks?${kind}=${encodeURIComponent(id)}`);
   }
 
   return (
@@ -44,11 +48,11 @@ export function FocusLayout() {
           </h2>
           {needsToday.length === 0 && <div className={s.emptyNote}>Nothing due — all clear.</div>}
           {needsToday.map((t) => {
-            const p = projectById(projects, t.project);
+            const p = homeOf(t, store);
             const prog = subtaskProgress(t);
             return (
               <div key={t.id} className={s.row} onClick={() => openDrawer(t.id)}>
-                <Checkbox done={t.status === 'done'} onToggle={() => toggleDone(t.id)} label={`Mark "${t.title}" done`} />
+                <Checkbox done={isDone(t)} onToggle={() => toggleDone(t.id)} label={`Mark "${t.title}" done`} />
                 <div className={s.textBlock}>
                   <div className={s.rowTitle}>{t.title}</div>
                   <div className={s.rowSubline}>
@@ -61,8 +65,8 @@ export function FocusLayout() {
                     )}
                   </div>
                 </div>
-                <PriorityPill priority={t.priority} status={t.status} />
-                <DuePill dueDate={t.dueDate} status={t.status} />
+                <PriorityPill priority={t.priority} done={isDone(t)} />
+                <DuePill dueDate={t.dueDate} done={isDone(t)} />
               </div>
             );
           })}
@@ -73,14 +77,14 @@ export function FocusLayout() {
           <h2 className={s.panelHeading}>Rest of the week</h2>
           {restOfWeek.length === 0 && <div className={s.emptyNote}>Nothing scheduled this week.</div>}
           {restOfWeek.map((t) => {
-            const p = projectById(projects, t.project);
+            const p = homeOf(t, store);
             return (
               <div key={t.id} className={s.denseRow} onClick={() => openDrawer(t.id)}>
-                <Checkbox done={t.status === 'done'} onToggle={() => toggleDone(t.id)} label={`Mark "${t.title}" done`} />
+                <Checkbox done={isDone(t)} onToggle={() => toggleDone(t.id)} label={`Mark "${t.title}" done`} />
                 <div className={s.denseTitle}>{t.title}</div>
                 <span className={s.denseProjectDot} style={{ background: p.color }} />
                 <span className={s.denseProjectName}>{p.name}</span>
-                <DuePill dueDate={t.dueDate} status={t.status} />
+                <DuePill dueDate={t.dueDate} done={isDone(t)} />
               </div>
             );
           })}
@@ -92,8 +96,8 @@ export function FocusLayout() {
         <div className={s.card}>
           <h2 className={s.panelHeading}>Project health</h2>
           <div style={{ marginTop: 15 }}>
-            {projects.map((p) => {
-              const stat = projectStats(tasks, p);
+            {groups.flatMap(([kind, list]) => list.map((p) => {
+              const stat = projectStats(tasks, p, kind);
               const note = stat.total === 0 || stat.percent === 100
                 ? 'all clear'
                 : stat.overdueCount > 0
@@ -102,11 +106,11 @@ export function FocusLayout() {
                     ? `next: ${stat.nextTask.title}`
                     : 'all clear';
               return (
-                <div key={p.id} className={s.projectGroup}>
-                  <div className={`${s.projectRow}`} onClick={() => goToProject(p.id)}>
+                <div key={`${kind}:${p.id}`} className={s.projectGroup}>
+                  <div className={`${s.projectRow}`} onClick={() => goToProject(p.id, kind)}>
                     <div className={s.projectHeaderLine}>
                       <span className={s.projectHeaderDot} style={{ background: p.color }} />
-                      <span className={s.projectHeaderName}>{p.name}</span>
+                      <span className={s.projectHeaderName}>{kind === 'project' ? p.name : `${p.name} · ${kind}`}</span>
                       <span className={s.projectPercent}>{stat.percent}%</span>
                     </div>
                     <ProgressBar percent={stat.percent} color={p.color} />
@@ -114,7 +118,7 @@ export function FocusLayout() {
                   </div>
                 </div>
               );
-            })}
+            }))}
           </div>
         </div>
 

@@ -313,3 +313,12 @@
     width: 100%;
   }
 }
+
+/* A type's own fields (Step 1b): label and input share a grid row, like the fields above. */
+.fieldRowLabel {
+  display: contents;
+}
+
+.typeFields {
+  margin-top: 14px;
+}

@@ -131,3 +131,8 @@
     width: 100%;
   }
 }
+
+/* The type and "belongs to" row, then priority and date (Step 1b). */
+.controlRow + .controlRow {
+  margin-top: 8px;
+}

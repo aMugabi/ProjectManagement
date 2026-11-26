@@ -1,17 +1,24 @@
 import { useEffect, useRef, type KeyboardEvent } from 'react';
-import type { Priority, Recurring, Status } from '../types';
+import type { ItemType, Priority, Recurring, Status } from '../types';
+import { isDone, ITEM_TYPES, TYPE_IDS, typeOf } from '../shared/itemTypes';
+import { homeValue } from '../lib/items';
+import { HomePicker } from './shared/HomePicker';
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
-import { projectById, depTitles, subtaskProgress, isDepBlocked, wouldCreateCycle } from '../lib/selectors';
+import { homeOf, depTitles, subtaskProgress, isDepBlocked, wouldCreateCycle } from '../lib/selectors';
 import { advanceRecurrence, dueMeta, formatLongDateShortWeekday, isoToDate } from '../shared/date';
 import { Checkbox } from './shared/Checkbox';
 import s from './Drawer.module.css';
 
-// 'blocked' isn't offered here — it's derived from unresolved dependencies, not picked manually.
-const STATUS_OPTIONS: { value: Status; label: string }[] = [
-  { value: 'todo', label: 'To do' },
-  { value: 'doing', label: 'In progress' },
-  { value: 'done', label: 'Done' },
+// Each type's own statuses. A task's 'blocked' isn't offered: it's derived from unresolved dependencies.
+function statusOptions(type: ItemType): { value: Status; label: string }[] {
+  return ITEM_TYPES[type].statuses.filter((o) => o.id !== 'blocked').map((o) => ({ value: o.id, label: o.label }));
+}
+
+const LEVEL_OPTIONS = [
+  { value: 'high', label: 'High' },
+  { value: 'med', label: 'Medium' },
+  { value: 'low', label: 'Low' },
 ];
 
 const PRIO_OPTIONS: { value: Priority; label: string; color: string }[] = [
@@ -46,13 +53,15 @@ export function Drawer() {
   const closeDrawer = useUiStore((st) => st.closeDrawer);
   const subDraft = useUiStore((st) => st.subDraft);
   const setSubDraft = useUiStore((st) => st.setSubDraft);
+  const store = useTaskStore();
   const {
     tasks,
-    projects,
     toggleDone,
     setStatus,
     setPriority,
-    setProject,
+    setHome,
+    setType,
+    setDetail,
     setDueDate,
     setRecurring,
     setRemindDaysBefore,
@@ -64,7 +73,7 @@ export function Drawer() {
     deleteTask,
     addDependency,
     removeDependency,
-  } = useTaskStore();
+  } = store;
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
   const task = openId ? tasks.find((t) => t.id === openId) : null;
@@ -86,10 +95,12 @@ export function Drawer() {
 
   if (!task) return null;
 
-  const project = projectById(projects, task.project);
-  const meta = dueMeta(task.dueDate, task.status);
+  const project = homeOf(task, store);
+  const type = typeOf(task);
+  const info = ITEM_TYPES[type];
+  const done = isDone(task);
+  const meta = dueMeta(task.dueDate, done);
   const prog = subtaskProgress(task);
-  const done = task.status === 'done';
   const blocked = isDepBlocked(task, tasks);
   const depCandidates = tasks.filter(
     (t) => !task.deps.includes(t.id) && !wouldCreateCycle(tasks, task.id, t.id),
@@ -118,16 +129,17 @@ export function Drawer() {
             <span className={s.metaDot} style={{ background: project.color }} />
             <select
               className={s.metaProjectSelect}
-              value={task.project}
-              onChange={(e) => setProject(task.id, e.target.value)}
-              aria-label="Project"
+              value={type}
+              onChange={(e) => setType(task.id, e.target.value as ItemType)}
+              aria-label="Type"
             >
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
+              {TYPE_IDS.map((t) => (
+                <option key={t} value={t}>
+                  {ITEM_TYPES[t].label}
                 </option>
               ))}
             </select>
+            <HomePicker className={s.metaProjectSelect} value={homeValue(task)} onChange={(value) => setHome(task.id, value)} />
             <div className={s.metaSpacer} />
             <button type="button" className={s.closeBtn} onClick={closeDrawer} aria-label="Close">
               ×
@@ -152,8 +164,9 @@ export function Drawer() {
                 className={s.select}
                 value={task.status}
                 onChange={(e) => setStatus(task.id, e.target.value as Status)}
+                aria-label="Status"
               >
-                {STATUS_OPTIONS.map((o) => (
+                {statusOptions(type).map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
@@ -161,7 +174,7 @@ export function Drawer() {
               </select>
             )}
 
-            <span className={s.fieldLabel}>Priority</span>
+            <span className={s.fieldLabel}>{info.priorityLabel}</span>
             <div className={s.prioGroup}>
               {PRIO_OPTIONS.map((o) => {
                 const selected = task.priority === o.value;
@@ -183,7 +196,7 @@ export function Drawer() {
               })}
             </div>
 
-            <span className={s.fieldLabel}>Due</span>
+            <span className={s.fieldLabel}>{info.dateLabel}</span>
             <div className={s.dueEditRow}>
               <input
                 type="date"
@@ -275,6 +288,36 @@ export function Drawer() {
             </div>
           </div>
 
+          {info.fields.length > 0 && (
+            <div className={`${s.fieldGrid} ${s.typeFields}`} role="group" aria-label={`${info.label} details`}>
+              {info.fields.map((field) => {
+                const value = String(task.details?.[field.key] ?? '');
+                const change = (v: string) => setDetail(task.id, field.key, v);
+                return (
+                  <label key={field.key} className={s.fieldRowLabel}>
+                    <span className={s.fieldLabel}>{field.label}</span>
+                    {field.kind === 'level' ? (
+                      <select className={s.select} value={value} onChange={(e) => change(e.target.value)} aria-label={field.label}>
+                        <option value="">—</option>
+                        {LEVEL_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : field.kind === 'date' ? (
+                      <input type="date" className={s.dateInput} value={value} onChange={(e) => change(e.target.value)} aria-label={field.label} />
+                    ) : field.kind === 'line' ? (
+                      <input className={s.select} value={value} onChange={(e) => change(e.target.value)} aria-label={field.label} />
+                    ) : (
+                      <textarea className={s.notesTextarea} rows={2} value={value} onChange={(e) => change(e.target.value)} aria-label={field.label} />
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+          )}
+
           <div className={s.subtasksSection}>
             <div className={s.sectionHeading}>
               Subtasks
@@ -331,7 +374,7 @@ export function Drawer() {
             className={`${s.primaryBtn} ${done ? s.reopen : s.complete}`}
             onClick={() => toggleDone(task.id)}
           >
-            {done ? 'Reopen task' : task.recurring ? 'Complete & repeat' : 'Mark complete'}
+            {done ? `Reopen ${info.label.toLowerCase()}` : task.recurring ? 'Complete & repeat' : info.completeLabel}
           </button>
           <button type="button" className={s.deleteBtn} onClick={handleDelete}>
             Delete

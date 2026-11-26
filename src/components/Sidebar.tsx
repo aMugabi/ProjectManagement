@@ -4,6 +4,8 @@ import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
 import { CLOUD_ENABLED } from '../lib/cloud';
+import { isDone } from '../shared/itemTypes';
+import type { GroupKind } from '../store/taskStore';
 import s from './Sidebar.module.css';
 
 const NAV_ITEMS = [
@@ -15,10 +17,6 @@ const NAV_ITEMS = [
 export function Sidebar() {
   const {
     tasks,
-    projects,
-    addProject,
-    renameProject,
-    deleteProject,
     workspaces,
     activeWorkspaceId,
     addWorkspace,
@@ -27,16 +25,13 @@ export function Sidebar() {
   } = useTaskStore();
   const navigate = useNavigate();
   const location = useLocation();
-  const { project: projectFilter } = useFilters();
+  const f = useFilters();
+  const projectFilter = f.project ?? f.product ?? f.partner;
   const openComposer = useUiStore((st) => st.openComposer);
   const sidebarOpen = useUiStore((st) => st.sidebarOpen);
   const closeSidebar = useUiStore((st) => st.closeSidebar);
   const openSettings = useUiStore((st) => st.openSettings);
 
-  const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [renameDraft, setRenameDraft] = useState('');
-  const [addingProject, setAddingProject] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
 
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [renamingWorkspaceId, setRenamingWorkspaceId] = useState<string | null>(null);
@@ -47,59 +42,11 @@ export function Sidebar() {
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
 
   const currentScreen = location.pathname.replace('/', '') || 'dashboard';
-  const openCount = tasks.filter((t) => t.status !== 'done').length;
+  const openCount = tasks.filter((t) => !isDone(t)).length;
 
   function goToScreen(screen: string) {
     navigate(`/${screen}`);
     closeSidebar();
-  }
-
-  function goToProject(id: string) {
-    navigate(`/tasks?project=${id}`);
-    closeSidebar();
-  }
-
-  function startRename(id: string, name: string) {
-    setRenamingId(id);
-    setRenameDraft(name);
-  }
-
-  function commitRename() {
-    const trimmed = renameDraft.trim();
-    if (renamingId && trimmed) renameProject(renamingId, trimmed);
-    setRenamingId(null);
-    setRenameDraft('');
-  }
-
-  function handleRenameKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') e.currentTarget.blur();
-    if (e.key === 'Escape') {
-      setRenamingId(null);
-      setRenameDraft('');
-    }
-  }
-
-  function commitAddProject() {
-    const trimmed = newProjectName.trim();
-    if (trimmed) addProject(trimmed);
-    setAddingProject(false);
-    setNewProjectName('');
-  }
-
-  function handleAddProjectKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') e.currentTarget.blur();
-    if (e.key === 'Escape') {
-      setAddingProject(false);
-      setNewProjectName('');
-    }
-  }
-
-  function handleDeleteProject(id: string, name: string) {
-    const count = tasks.filter((t) => t.project === id).length;
-    const message = count
-      ? `Delete "${name}"? This also deletes its ${count} task${count === 1 ? '' : 's'}. This can't be undone.`
-      : `Delete "${name}"? This can't be undone.`;
-    if (window.confirm(message)) deleteProject(id);
   }
 
   function switchWorkspace(id: string) {
@@ -182,94 +129,9 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className={s.sectionRow}>
-        <span className={s.sectionLabel}>Projects</span>
-        <button
-          type="button"
-          className={s.addProjectBtn}
-          onClick={() => setAddingProject(true)}
-          aria-label="Add project"
-        >
-          +
-        </button>
-      </div>
-      <div className={s.projectList}>
-        {projects.length === 0 && !addingProject && (
-          <div className={s.emptyProjects}>No projects yet — add one above.</div>
-        )}
-        {projects.map((p) => {
-          const active = currentScreen === 'tasks' && projectFilter === p.id;
-          const count = tasks.filter((t) => t.project === p.id && t.status !== 'done').length;
-          const isRenaming = renamingId === p.id;
-          return (
-            <div key={p.id} className={s.projectRowWrap}>
-              {isRenaming ? (
-                <div className={s.navRow}>
-                  <span className={s.dot} style={{ background: p.color }} />
-                  <input
-                    className={s.renameInput}
-                    autoFocus
-                    value={renameDraft}
-                    onChange={(e) => setRenameDraft(e.target.value)}
-                    onBlur={commitRename}
-                    onKeyDown={handleRenameKeyDown}
-                  />
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  className={`${s.navRow} ${active ? s.active : ''}`}
-                  onClick={() => goToProject(p.id)}
-                >
-                  <span className={s.dot} style={{ background: p.color }} />
-                  <span className={s.label}>{p.name}</span>
-                  <span className={s.count}>{count}</span>
-                </button>
-              )}
-              {!isRenaming && (
-                <>
-                  <button
-                    type="button"
-                    className={s.editProjectBtn}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      startRename(p.id, p.name);
-                    }}
-                    aria-label={`Rename "${p.name}"`}
-                  >
-                    ✎
-                  </button>
-                  <button
-                    type="button"
-                    className={`${s.editProjectBtn} ${s.deleteProjectBtn}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteProject(p.id, p.name);
-                    }}
-                    aria-label={`Delete "${p.name}"`}
-                  >
-                    🗑
-                  </button>
-                </>
-              )}
-            </div>
-          );
-        })}
-        {addingProject && (
-          <div className={s.navRow}>
-            <span className={s.dot} style={{ background: 'var(--border-strong)' }} />
-            <input
-              className={s.renameInput}
-              autoFocus
-              placeholder="Project name"
-              value={newProjectName}
-              onChange={(e) => setNewProjectName(e.target.value)}
-              onBlur={commitAddProject}
-              onKeyDown={handleAddProjectKeyDown}
-            />
-          </div>
-        )}
-      </div>
+      <GroupSection kind="project" label="Projects" />
+      <GroupSection kind="product" label="Products" />
+      <GroupSection kind="partner" label="Partners" />
 
       <div className={s.spacer} />
       <div className={s.footerWrap}>
@@ -360,3 +222,161 @@ export function Sidebar() {
     </>
   );
 }
+
+const SINGULAR: Record<GroupKind, string> = { project: 'project', product: 'product', partner: 'partner' };
+const LIST = { project: 'projects', product: 'products', partner: 'partners' } as const;
+
+/**
+ * One sidebar section: projects, products or partners, each opening the task list filtered to it,
+ * with an open-item count, and add, rename and delete. A product's or partner's count includes
+ * its pairs' items.
+ */
+function GroupSection({ kind, label }: { kind: GroupKind; label: string }) {
+  const store = useTaskStore();
+  const { tasks, addGroup, renameGroup, deleteGroup } = store;
+  const groups = store[LIST[kind]];
+  const navigate = useNavigate();
+  const location = useLocation();
+  const f = useFilters();
+  const closeSidebar = useUiStore((st) => st.closeSidebar);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState('');
+  const singular = SINGULAR[kind];
+  const Singular = singular[0].toUpperCase() + singular.slice(1);
+  const currentScreen = location.pathname.replace('/', '') || 'dashboard';
+
+  function open(id: string) {
+    navigate(`/tasks?${kind}=${encodeURIComponent(id)}`);
+    closeSidebar();
+  }
+
+  function commitRename() {
+    if (renamingId && renameDraft.trim()) renameGroup(kind, renamingId, renameDraft);
+    setRenamingId(null);
+    setRenameDraft('');
+  }
+
+  function commitAdd() {
+    if (newName.trim()) addGroup(kind, newName);
+    setAdding(false);
+    setNewName('');
+  }
+
+  function keyHandler(cancel: () => void) {
+    return (e: KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') e.currentTarget.blur();
+      if (e.key === 'Escape') cancel();
+    };
+  }
+
+  function handleDelete(id: string, name: string) {
+    const count = tasks.filter((t) => t[kind] === id).length;
+    const items = `${count} item${count === 1 ? '' : 's'}`;
+    const message =
+      kind === 'project'
+        ? count
+          ? `Delete "${name}"? This also deletes its ${count} task${count === 1 ? '' : 's'}. This can't be undone.`
+          : `Delete "${name}"? This can't be undone.`
+        : count
+          ? `Delete "${name}"? Its ${items} stay, no longer in this ${singular}. This can't be undone.`
+          : `Delete "${name}"? This can't be undone.`;
+    if (window.confirm(message)) deleteGroup(kind, id);
+  }
+
+  // Products and partners are new in Step 1b: their sections show only a heading until used.
+  const quiet = kind !== 'project' && groups.length === 0 && !adding;
+
+  return (
+    <>
+      <div className={s.sectionRow}>
+        <span className={s.sectionLabel}>{label}</span>
+        <button type="button" className={s.addProjectBtn} onClick={() => setAdding(true)} aria-label={`Add ${singular}`}>
+          +
+        </button>
+      </div>
+      {!quiet && <div className={s.projectList}>
+        {kind === 'project' && groups.length === 0 && !adding && (
+          <div className={s.emptyProjects}>No projects yet — add one above.</div>
+        )}
+        {groups.map((p) => {
+          const active = currentScreen === 'tasks' && f[kind] === p.id;
+          const count = tasks.filter((t) => t[kind] === p.id && !isDone(t)).length;
+          const isRenaming = renamingId === p.id;
+          return (
+            <div key={p.id} className={s.projectRowWrap}>
+              {isRenaming ? (
+                <div className={s.navRow}>
+                  <span className={s.dot} style={{ background: p.color }} />
+                  <input
+                    className={s.renameInput}
+                    autoFocus
+                    value={renameDraft}
+                    onChange={(e) => setRenameDraft(e.target.value)}
+                    onBlur={commitRename}
+                    onKeyDown={keyHandler(() => {
+                      setRenamingId(null);
+                      setRenameDraft('');
+                    })}
+                  />
+                </div>
+              ) : (
+                <button type="button" className={`${s.navRow} ${active ? s.active : ''}`} onClick={() => open(p.id)}>
+                  <span className={s.dot} style={{ background: p.color }} />
+                  <span className={s.label}>{p.name}</span>
+                  <span className={s.count}>{count}</span>
+                </button>
+              )}
+              {!isRenaming && (
+                <>
+                  <button
+                    type="button"
+                    className={s.editProjectBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRenamingId(p.id);
+                      setRenameDraft(p.name);
+                    }}
+                    aria-label={`Rename "${p.name}"`}
+                  >
+                    ✎
+                  </button>
+                  <button
+                    type="button"
+                    className={`${s.editProjectBtn} ${s.deleteProjectBtn}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(p.id, p.name);
+                    }}
+                    aria-label={`Delete "${p.name}"`}
+                  >
+                    🗑
+                  </button>
+                </>
+              )}
+            </div>
+          );
+        })}
+        {adding && (
+          <div className={s.navRow}>
+            <span className={s.dot} style={{ background: 'var(--border-strong)' }} />
+            <input
+              className={s.renameInput}
+              autoFocus
+              placeholder={`${Singular} name`}
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onBlur={commitAdd}
+              onKeyDown={keyHandler(() => {
+                setAdding(false);
+                setNewName('');
+              })}
+            />
+          </div>
+        )}
+      </div>}
+    </>
+  );
+}
+

@@ -1,7 +1,8 @@
 import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
-import { visibleTasks, withoutDone, sortByDue, projectById, effectiveStatus } from '../lib/selectors';
+import { visibleTasks, withoutDone, sortByDue, homeOf, phaseOf } from '../lib/selectors';
+import { isDone } from '../shared/itemTypes';
 import { addDays, dueMeta, offsetFromToday, today } from '../shared/date';
 import s from './Timeline.module.css';
 
@@ -15,11 +16,12 @@ function barWeight(taskSubsCount: number, highPriority: boolean): number {
 }
 
 export function Timeline() {
-  const { tasks, projects } = useTaskStore();
+  const store = useTaskStore();
+  const { tasks } = store;
   const openDrawer = useUiStore((st) => st.openDrawer);
   const f = useFilters();
 
-  const filtered = withoutDone(visibleTasks(tasks, projects, f));
+  const filtered = withoutDone(visibleTasks(tasks, store, f));
   const shown = sortByDue(filtered);
 
   const days = Array.from({ length: WINDOW_SPAN }, (_, i) => {
@@ -49,8 +51,8 @@ export function Timeline() {
       {shown.length === 0 && <div className={s.emptyNote}>Nothing in the next two weeks.</div>}
 
       {shown.map((t) => {
-        const project = projectById(projects, t.project);
-        const meta = dueMeta(t.dueDate, t.status);
+        const project = homeOf(t, store);
+        const meta = dueMeta(t.dueDate, isDone(t));
         const dueDayIndex = offsetFromToday(t.dueDate) - WINDOW_START;
         const length = barWeight(t.subs.length, t.priority === 'high');
         let startDay = dueDayIndex - (length - 1);
@@ -61,9 +63,11 @@ export function Timeline() {
         if (widthPct < 4) widthPct = 4;
         const leftPct = (startDay / WINDOW_SPAN) * 100;
 
-        const blocked = effectiveStatus(t, tasks) === 'blocked';
-        const background = blocked ? 'var(--blocked-bg)' : `${project.color}22`;
-        const border = blocked ? '1px solid var(--blocked-border)' : `1px solid ${project.color}55`;
+        const blocked = phaseOf(t, tasks) === 'blocked';
+        // A colour with transparency added; an item with no project has a theme colour instead.
+        const tint = (alpha: string, fallback: string) => (project.color.startsWith('#') ? `${project.color}${alpha}` : fallback);
+        const background = blocked ? 'var(--blocked-bg)' : tint('22', 'var(--surface-raised)');
+        const border = blocked ? '1px solid var(--blocked-border)' : `1px solid ${tint('55', 'var(--border-strong)')}`;
 
         return (
           <div key={t.id} className={s.row}>

@@ -1,5 +1,5 @@
 /** Real-date helpers. All task dates are ISO strings ('YYYY-MM-DD'), compared at day granularity. */
-import type { Recurring, Status } from '../types.js';
+import type { Recurring } from '../types.js';
 
 const DAY = 86400000;
 
@@ -58,12 +58,14 @@ export interface DueMeta {
   dueToday: boolean;
 }
 
-export function dueMeta(dueDate: string, status: Status): DueMeta {
+/** `done`: the item is finished (by its type's own statuses), so it is never overdue. */
+export function dueMeta(dueDate: string, done: boolean): DueMeta {
   const d = offsetFromToday(dueDate);
-  const overdue = d < 0 && status !== 'done';
-  const dueToday = d === 0 && status !== 'done';
+  const overdue = d < 0 && !done;
+  const dueToday = d === 0 && !done;
   let label: string;
-  if (status === 'done') label = 'done';
+  if (!dueDate) label = 'no date';
+  else if (done) label = 'done';
   else if (d === 0) label = 'today';
   else if (d === 1) label = 'tomorrow';
   else if (d < 0) label = `${Math.abs(d)}d late`;

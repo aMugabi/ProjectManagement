@@ -1,4 +1,4 @@
-import type { Priority, Status } from '../../types';
+import type { Priority } from '../../types';
 import s from './shared.module.css';
 
 const LABEL: Record<Priority, string> = { high: 'High', med: 'Med', low: 'Low' };
@@ -13,8 +13,7 @@ const BG: Record<Priority, string> = {
   low: 'var(--prio-low-bg)',
 };
 
-export function PriorityPill({ priority, status }: { priority: Priority; status?: Status }) {
-  const done = status === 'done';
+export function PriorityPill({ priority, done = false }: { priority: Priority; done?: boolean }) {
   return (
     <span
       className={s.pill}

@@ -1,11 +1,11 @@
-import type { Status } from '../../types';
 import { dueMeta } from '../../shared/date';
 import s from './shared.module.css';
 
-export function DuePill({ dueDate, status }: { dueDate: string; status: Status }) {
-  const { label, overdue, dueToday } = dueMeta(dueDate, status);
+/** `done`: the item is finished (by its type's own statuses). */
+export function DuePill({ dueDate, done }: { dueDate: string; done: boolean }) {
+  const { label, overdue, dueToday } = dueMeta(dueDate, done);
   const color =
-    status === 'done'
+    done
       ? 'var(--text-faint)'
       : overdue
         ? 'var(--overdue-text)'

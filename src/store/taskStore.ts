@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Priority, Project, Recurring, ReminderSettings, Status, Task, Workspace, WorkspaceSnapshot } from '../types';
+import type { ItemType, Priority, Project, Recurring, ReminderSettings, Status, Task, Workspace, WorkspaceSnapshot } from '../types';
 import { buildSeedTasks, PROJECTS } from '../data/seed';
 import { advanceRecurrence } from '../shared/date';
 import { activeSnapshot, DEFAULT_REMINDERS, DEFAULT_WORKSPACE, emptySnapshot, normalizeState, ownEntry, STATE_VERSION, stripDeps, type SyncedState } from '../shared/state';
@@ -8,6 +8,8 @@ import { CLOUD_ENABLED } from '../lib/cloud';
 import { createCloudStorage, onRemoteState } from '../lib/cloudStorage';
 import { STORE_KEY } from '../lib/deviceData';
 import { wouldCreateCycle } from '../lib/selectors';
+import { parseHome, withDetail, withHome, withoutGroup, withType, type HomeValue } from '../lib/items';
+import { completeStatus, firstStatus, isDone, statusForPhase, typeOf, type Phase } from '../shared/itemTypes';
 
 const PROJECT_COLORS = [
   '#b4674a',
@@ -40,18 +42,26 @@ function nextProjectColor(existing: Project[]): string {
   return PROJECT_COLORS.find((c) => !used.has(c)) ?? PROJECT_COLORS[existing.length % PROJECT_COLORS.length];
 }
 
-/** Completing a recurring task rolls it to its next occurrence instead of resting at 'done'. */
-function completeTask(task: Task): Task {
+/**
+ * Finishing an item sets its type's complete status (a task done, a risk closed, an issue
+ * resolved...), or `status` when given (e.g. a decision superseded). A recurring item rolls to its
+ * next occurrence instead, back at its type's first status.
+ */
+function completeTask(task: Task, status: Status = completeStatus(task)): Task {
   if (task.recurring) {
     return {
       ...task,
-      status: 'todo',
+      status: firstStatus(typeOf(task)),
       dueDate: advanceRecurrence(task.dueDate, task.recurring),
       subs: task.subs.map((sub) => ({ ...sub, done: false })),
     };
   }
-  return { ...task, status: 'done' };
+  return { ...task, status };
 }
+
+/** Which list a project, product or partner lives in. */
+const GROUP_LIST = { project: 'projects', product: 'products', partner: 'partners' } as const;
+export type GroupKind = keyof typeof GROUP_LIST;
 
 /**
  * Applies `change` to one task and stamps it, so sync keeps this edit over older copies on
@@ -68,6 +78,15 @@ interface TaskStore extends SyncedState {
   addProject: (name: string) => void;
   renameProject: (id: string, name: string) => void;
   deleteProject: (id: string) => void;
+  /** Adds a project, product or partner (returns its id, or '' for an empty name). */
+  addGroup: (kind: GroupKind, name: string) => string;
+  renameGroup: (kind: GroupKind, id: string, name: string) => void;
+  /** A project goes with its tasks; a product or partner goes with its pairs, and its items stay. */
+  deleteGroup: (kind: GroupKind, id: string) => void;
+  /** Moves an item to a plain project, a product, a partner, a pair (made if new) or nothing. */
+  setHome: (id: string, home: HomeValue) => void;
+  setType: (id: string, type: ItemType) => void;
+  setDetail: (id: string, key: string, value: string) => void;
   toggleDone: (id: string) => void;
   setStatus: (id: string, status: Status) => void;
   setPriority: (id: string, priority: Priority) => void;
@@ -80,17 +99,17 @@ interface TaskStore extends SyncedState {
   addSubtask: (id: string, text: string) => void;
   toggleSubtask: (id: string, index: number) => void;
   deleteTask: (id: string) => void;
-  addTask: (input: { title: string; project: string; priority: Priority; dueDate: string }) => void;
+  addTask: (input: { title: string; project?: string; home?: HomeValue; type?: ItemType; priority: Priority; dueDate: string }) => void;
   addDependency: (id: string, dependsOnId: string) => void;
   removeDependency: (id: string, dependsOnId: string) => void;
-  /** Move a task into a board column at a specific position, renumbering that column's order. */
-  moveTask: (id: string, destStatus: Status, destColumnOrderedIds: string[]) => void;
+  /** Move an item into a board column (a phase) at a specific position, renumbering that column's order. */
+  moveTask: (id: string, destPhase: Exclude<Phase, 'blocked'>, destColumnOrderedIds: string[]) => void;
   updateReminders: (patch: Partial<Omit<ReminderSettings, 'updatedAt'>>) => void;
 }
 
 export const useTaskStore = create<TaskStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       tasks: buildSeedTasks(),
       projects: PROJECTS,
       products: [],
@@ -184,19 +203,66 @@ export const useTaskStore = create<TaskStore>()(
           };
         }),
 
+      // Reopening goes back to the type's first status; finishing to its complete status.
       toggleDone: (id) =>
         set((s) => ({
-          tasks: updateTask(s.tasks, id, (t) => (t.status === 'done' ? { ...t, status: 'todo' } : completeTask(t))),
+          tasks: updateTask(s.tasks, id, (t) => (isDone(t) ? { ...t, status: firstStatus(typeOf(t)) } : completeTask(t))),
         })),
 
       setStatus: (id, status) =>
         set((s) => ({
-          tasks: updateTask(s.tasks, id, (t) => (status === 'done' ? completeTask(t) : { ...t, status })),
+          tasks: updateTask(s.tasks, id, (t) => (isDone({ type: t.type, status }) ? completeTask(t, status) : { ...t, status })),
         })),
+
+      addGroup: (kind, name) => {
+        const trimmed = name.trim();
+        if (!trimmed) return '';
+        let id = '';
+        set((s) => {
+          const list = s[GROUP_LIST[kind]];
+          id = uniqueId(trimmed, list.map((g) => g.id));
+          const group: Project = { id, name: trimmed, color: nextProjectColor(list), updatedAt: Date.now() };
+          return { [GROUP_LIST[kind]]: [...list, group] } as Partial<TaskStore>;
+        });
+        return id;
+      },
+
+      renameGroup: (kind, id, name) =>
+        set((s) => {
+          const trimmed = name.trim();
+          if (!trimmed) return s;
+          return {
+            [GROUP_LIST[kind]]: s[GROUP_LIST[kind]].map((g) => (g.id === id ? { ...g, name: trimmed, updatedAt: Date.now() } : g)),
+          } as Partial<TaskStore>;
+        }),
+
+      deleteGroup: (kind, id) => {
+        if (kind === 'project') return get().deleteProject(id);
+        set((s) => {
+          const { snap, deleted } = withoutGroup(activeSnapshot(s), kind, id, s.activeWorkspaceId, Date.now());
+          return { ...snap, deleted: { ...s.deleted, ...deleted } };
+        });
+      },
+
+      setHome: (id, home) =>
+        set((s) => {
+          const now = Date.now();
+          const t = s.tasks.find((x) => x.id === id);
+          if (!t) return s;
+          const { task, newPair } = withHome(t, parseHome(home), s.pairs, now);
+          return {
+            tasks: s.tasks.map((x) => (x.id === id ? { ...task, updatedAt: now } : x)),
+            ...(newPair ? { pairs: [...s.pairs, newPair] } : {}),
+          };
+        }),
+
+      setType: (id, type) => set((s) => ({ tasks: updateTask(s.tasks, id, (t) => withType(t, type)) })),
+
+      setDetail: (id, key, value) => set((s) => ({ tasks: updateTask(s.tasks, id, (t) => withDetail(t, key, value)) })),
 
       setPriority: (id, priority) => set((s) => ({ tasks: updateTask(s.tasks, id, (t) => ({ ...t, priority })) })),
 
-      setProject: (id, project) => set((s) => ({ tasks: updateTask(s.tasks, id, (t) => ({ ...t, project })) })),
+      setProject: (id, project) => get().setHome(id, project ? `project:${project}` : ''),
 
       setDueDate: (id, dueDate) => set((s) => ({ tasks: updateTask(s.tasks, id, (t) => ({ ...t, dueDate })) })),
 
@@ -230,26 +296,27 @@ export const useTaskStore = create<TaskStore>()(
           deleted: { ...s.deleted, [`task:${s.activeWorkspaceId}:${id}`]: Date.now() },
         })),
 
-      addTask: ({ title, project, priority, dueDate }) =>
-        set((s) => ({
-          tasks: [
-            {
-              id: `t${Date.now()}`,
-              project,
-              title,
-              status: 'todo',
-              priority,
-              dueDate,
-              subs: [],
-              recurring: null,
-              deps: [],
-              notes: '',
-              order: Math.min(0, ...s.tasks.map((t) => t.order)) - 1,
-              updatedAt: Date.now(),
-            },
-            ...s.tasks,
-          ],
-        })),
+      addTask: ({ title, project, home, type = 'task', priority, dueDate }) =>
+        set((s) => {
+          const now = Date.now();
+          const blank: Task = {
+            id: `t${now}`,
+            project: project ?? '',
+            title,
+            status: firstStatus(type),
+            priority,
+            dueDate,
+            subs: [],
+            recurring: null,
+            deps: [],
+            notes: '',
+            order: Math.min(0, ...s.tasks.map((t) => t.order)) - 1,
+            updatedAt: now,
+          };
+          if (type !== 'task') blank.type = type;
+          const { task, newPair } = home === undefined ? { task: blank, newPair: null } : withHome(blank, parseHome(home), s.pairs, now);
+          return { tasks: [task, ...s.tasks], ...(newPair ? { pairs: [...s.pairs, newPair] } : {}) };
+        }),
 
       // Refuses dependencies that would close a loop — every task in a loop would stay blocked forever.
       addDependency: (id, dependsOnId) =>
@@ -262,13 +329,16 @@ export const useTaskStore = create<TaskStore>()(
       removeDependency: (id, dependsOnId) =>
         set((s) => ({ tasks: updateTask(s.tasks, id, (t) => ({ ...t, deps: t.deps.filter((d) => d !== dependsOnId) })) })),
 
-      moveTask: (id, destStatus, destColumnOrderedIds) =>
+      moveTask: (id, destPhase, destColumnOrderedIds) =>
         set((s) => {
           const now = Date.now();
           const orderById = new Map(destColumnOrderedIds.map((tid, i) => [tid, i]));
           return {
             tasks: s.tasks.map((t) => {
-              if (t.id === id) return { ...t, status: destStatus, order: orderById.get(id) ?? t.order, updatedAt: now };
+              if (t.id === id) {
+                // Each type has its own status for a column: a risk dropped in "In progress" is mitigating.
+                return { ...t, status: statusForPhase(typeOf(t), destPhase), order: orderById.get(id) ?? t.order, updatedAt: now };
+              }
               if (!orderById.has(t.id) || orderById.get(t.id) === t.order) return t;
               return { ...t, order: orderById.get(t.id)!, updatedAt: now };
             }),

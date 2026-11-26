@@ -4,6 +4,7 @@ import { useTaskStore } from '../store/taskStore';
 import { useUiStore } from '../store/uiStore';
 import { useFilters } from '../lib/useFilters';
 import { visibleTasks, withoutDone } from '../lib/selectors';
+import { pluralLabel, TYPE_IDS } from '../shared/itemTypes';
 import { offsetFromToday, formatLongDate, today } from '../shared/date';
 import s from './Header.module.css';
 import { RemindersBell } from './RemindersBell';
@@ -17,7 +18,8 @@ const PRIORITIES = [
 export function Header() {
   const location = useLocation();
   const screen = location.pathname.replace('/', '') || 'dashboard';
-  const { tasks, projects } = useTaskStore();
+  const store = useTaskStore();
+  const { tasks, projects, products, partners } = store;
   const f = useFilters();
   const searchRef = useRef<HTMLInputElement>(null);
   const toggleSidebar = useUiStore((st) => st.toggleSidebar);
@@ -36,12 +38,20 @@ export function Header() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const project = f.project ? projects.find((p) => p.id === f.project) : null;
+  // The project, product or partner the views are filtered to, if any.
+  const group = f.project
+    ? { kind: 'Project', item: projects.find((p) => p.id === f.project) }
+    : f.product
+      ? { kind: 'Product', item: products.find((p) => p.id === f.product) }
+      : f.partner
+        ? { kind: 'Partner', item: partners.find((p) => p.id === f.partner) }
+        : null;
+  const project = group?.item ? { name: group.item.name } : null;
 
   let kicker = 'Good morning';
   let title = formatLongDate(today());
-  if (project) {
-    kicker = 'Project';
+  if (group && project) {
+    kicker = group.kind;
     title = project.name;
   } else if (screen === 'tasks') {
     kicker = 'Everything open';
@@ -51,7 +61,7 @@ export function Header() {
     title = 'Next two weeks';
   }
 
-  const filtered = visibleTasks(tasks, projects, f);
+  const filtered = visibleTasks(tasks, store, f);
   const open = withoutDone(filtered);
   const overdue = open.filter((t) => offsetFromToday(t.dueDate) < 0).length;
 
@@ -153,6 +163,21 @@ export function Header() {
         >
           {f.hideDone ? 'Hiding done' : 'Showing done'}
         </button>
+        {screen !== 'dashboard' && (
+          <select
+            className={`${s.chip} ${f.type ? s.active : ''}`}
+            value={f.type ?? ''}
+            onChange={(e) => f.setType((e.target.value || null) as typeof f.type)}
+            aria-label="Item type"
+          >
+            <option value="">All types</option>
+            {TYPE_IDS.map((t) => (
+              <option key={t} value={t}>
+                {pluralLabel(t)}
+              </option>
+            ))}
+          </select>
+        )}
         <div className={s.chipSpacer} />
         <span className={s.resultLine}>{resultLine}</span>
       </div>
