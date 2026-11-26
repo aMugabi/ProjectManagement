@@ -108,6 +108,10 @@ repository variable `LEDGER_URL`. Trigger a run by hand from the Actions tab (*S
 Run workflow*). GitHub may start scheduled runs a few minutes late; each reminder and each day's
 email is still sent at most once.
 
+If the morning email can't be sent, the endpoint answers 502 and that run fails, so GitHub emails
+whoever last edited the workflow's schedule (keep *Actions* notifications on under GitHub →
+Settings → Notifications). The next run retries the email.
+
 Alternatively, an Upstash QStash schedule can call the same endpoint (it verifies the
 `QSTASH_CURRENT_SIGNING_KEY` / `QSTASH_NEXT_SIGNING_KEY` signature).
 

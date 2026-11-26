@@ -61,7 +61,8 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   // The morning email digest (if turned on). Claimed like a push, but released if sending fails
-  // so the next run retries instead of silently skipping the day.
+  // so the next run retries instead of silently skipping the day. A failure answers 502, so the
+  // timer's run fails and GitHub emails the owner instead of the digest just not arriving.
   let emailed = 0;
   const email = emailConfigured() ? digestEmail(state, now, new URL(request.url).origin) : null;
   if (email && (await kv.set(SENT_PREFIX + email.key, 1, { nx: true, ex: SENT_TTL_SECONDS })) === 'OK') {
@@ -71,6 +72,7 @@ export async function POST(request: Request): Promise<Response> {
     } catch (e) {
       await kv.del(SENT_PREFIX + email.key);
       console.error('Digest email failed:', (e as Error).message);
+      return Response.json({ due: due.length, sent, emailed, error: 'digest email failed' }, { status: 502 });
     }
   }
   return Response.json({ due: due.length, sent, emailed });

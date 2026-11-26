@@ -93,12 +93,16 @@ describe('POST /api/reminders', () => {
     expect(sendEmail).toHaveBeenCalledTimes(1);
   });
 
-  it('retries on the next run if sending the email fails', async () => {
+  it('fails the run (so the timer job alerts) and retries on the next run if sending the email fails', async () => {
     seedWithEmail();
     sendEmail.mockRejectedValueOnce(new Error('the email service refused it (403)'));
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(await (await call()).json()).toMatchObject({ emailed: 0 });
-    expect(await (await call()).json()).toMatchObject({ emailed: 1 });
+    const failed = await call();
+    expect(failed.status).toBe(502);
+    expect(await failed.json()).toMatchObject({ emailed: 0, error: 'digest email failed' });
+    const retried = await call();
+    expect(retried.status).toBe(200);
+    expect(await retried.json()).toMatchObject({ emailed: 1 });
     expect(sendEmail).toHaveBeenCalledTimes(2);
     errors.mockRestore();
   });
