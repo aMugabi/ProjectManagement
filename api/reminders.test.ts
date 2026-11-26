@@ -56,9 +56,8 @@ describe('POST /api/reminders', () => {
 
     const first = await (await call()).json();
     expect(first).toEqual({ due: 1, sent: 1, emailed: 0 }); // email digest is off by default
-    expect(sendPush).toHaveBeenCalledWith(
-      expect.objectContaining({ title: 'Ledger · 1 due today', tag: `digest:${now.date}`, path: 'dashboard' }),
-    );
+    // Private notifications are on by default: counts only, no task names on the lock screen.
+    expect(sendPush).toHaveBeenCalledWith({ title: 'Ledger · 1 due today', body: 'Open Ledger to see them.', tag: `digest:${now.date}`, path: 'dashboard' });
 
     const second = await (await call()).json();
     expect(second).toEqual({ due: 1, sent: 0, emailed: 0 });
@@ -74,7 +73,7 @@ describe('POST /api/reminders', () => {
     const state = normalizeState({
       tasks: [task('due-today', now.date)],
       projects: [{ id: 'p', name: 'Home', color: '#000', updatedAt: 1 }],
-      reminders: { enabled: true, digestTime: '00:00', defaultLeadDays: 1, includeOverdue: true, timezone: 'Africa/Kampala', emailDigest: true, email: 'me@example.com', updatedAt: 1 },
+      reminders: { enabled: true, digestTime: '00:00', defaultLeadDays: 1, includeOverdue: true, timezone: 'Africa/Kampala', emailDigest: true, email: 'me@example.com', privateNotifications: false, updatedAt: 1 },
     });
     redis.set('ledger:state', { state, version: STATE_VERSION });
     return now;

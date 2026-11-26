@@ -10,7 +10,7 @@ function task(id: string, title: string, dueDate: string): Task {
   return { id, project: 'p', title, status: 'todo', priority: 'med', dueDate, subs: [], recurring: null, deps: [], notes: '', order: 0, updatedAt: 1 };
 }
 
-const on: Partial<ReminderSettings> = { enabled: true, emailDigest: true, email: 'me@example.com', digestTime: '06:00', defaultLeadDays: 1, includeOverdue: true };
+const on: Partial<ReminderSettings> = { enabled: true, emailDigest: true, email: 'me@example.com', digestTime: '06:00', defaultLeadDays: 1, includeOverdue: true, privateNotifications: false };
 
 function state(tasks: Task[], reminders: Partial<ReminderSettings> = on) {
   return normalizeState({ tasks, projects: [{ id: 'p', name: 'Home', color: '#000', updatedAt: 1 }], reminders });
@@ -49,6 +49,20 @@ describe('digestEmail', () => {
     const email = digestEmail(state([task('x', '<script>alert(1)</script> & co', TODAY)]), { date: TODAY, minutes: 600 }, APP)!;
     expect(email.html).not.toContain('<script>');
     expect(email.html).toContain('&lt;script&gt;alert(1)&lt;/script&gt; &amp; co');
+  });
+
+  it('leaves every name and per-task link out when private notifications are on (the default)', () => {
+    const { privateNotifications: _omitted, ...defaults } = on;
+    for (const settings of [{ ...on, privateNotifications: true }, defaults]) {
+      const email = digestEmail(state(tasks, settings), { date: TODAY, minutes: 6 * 60 }, APP)!;
+      expect(email.subject).toBe('Ledger · 1 due today, 1 overdue, 1 coming up');
+      expect(email.text).toContain('Due today: 1\nOverdue: 1\nComing up: 1');
+      expect(email.text).toContain(`Open Ledger: ${APP}`);
+      for (const body of [email.text, email.html]) {
+        for (const name of ['Pay rent', 'Renew licence', 'Book flights', 'Home', 'task=', 'ws=']) expect(body).not.toContain(name);
+      }
+      expect(email.html).toContain(`href="${APP}"`);
+    }
   });
 
   it('validates addresses', () => {

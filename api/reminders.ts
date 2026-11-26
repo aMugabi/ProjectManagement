@@ -1,7 +1,7 @@
 import { Receiver } from '@upstash/qstash';
 import { timingSafeEqual } from 'node:crypto';
 import { digestEmail } from '../src/shared/digestEmail.js';
-import { computeReminders, nowInZone } from '../src/shared/reminders.js';
+import { computeReminders, nowInZone, outsideText } from '../src/shared/reminders.js';
 import { normalizeState, type StoredState } from '../src/shared/state.js';
 import { emailConfigured, sendEmail } from './_lib/email.js';
 import { SENT_PREFIX, STATE_KEY } from './_lib/keys.js';
@@ -56,7 +56,10 @@ export async function POST(request: Request): Promise<Response> {
     // SET NX claims the reminder, so overlapping or repeated runs never push it twice.
     const claimed = await kv.set(SENT_PREFIX + r.key, 1, { nx: true, ex: SENT_TTL_SECONDS });
     if (claimed !== 'OK') continue;
-    await sendPush({ title: r.title, body: r.body, tag: r.key, path: r.url });
+    // The payload is encrypted to each device, but it is displayed on lock screens: private
+    // notifications leave the names out.
+    const { title, body } = outsideText(r, state.reminders.privateNotifications);
+    await sendPush({ title, body, tag: r.key, path: r.url });
     sent++;
   }
 

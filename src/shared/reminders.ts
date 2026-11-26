@@ -38,6 +38,8 @@ export interface Reminder {
   /** App-relative link (no leading slash) opened when the reminder is clicked. */
   url: string;
   taskId?: string;
+  /** Lead reminders: days until the task is due. */
+  daysLeft?: number;
 }
 
 /** 'HH:MM' → minutes after midnight; invalid input falls back to 08:00. */
@@ -153,7 +155,22 @@ export function computeReminders(state: SyncedState, now: LocalNow): Reminder[] 
       body: where(ref) || 'Ledger',
       url: taskUrl(ref),
       taskId: ref.task.id,
+      daysLeft: ref.daysLeft,
     });
   }
   return reminders;
+}
+
+/**
+ * The words a reminder shows outside the app: push and system notifications, which can appear on
+ * a lock screen. With private notifications on, only counts and timing, never a task, project or
+ * workspace name. (In-app pop-ups show the full text: the app is already unlocked.)
+ */
+export function outsideText(r: Reminder, privateNotifications: boolean | undefined): { title: string; body: string } {
+  // Only an explicit "off" shows names; data saved before the setting existed stays private.
+  if (privateNotifications === false) return { title: r.title, body: r.body };
+  // The digest's title is already counts only ("Ledger · 2 due today, 1 overdue").
+  if (r.kind === 'digest') return { title: r.title, body: 'Open Ledger to see them.' };
+  const when = r.daysLeft === undefined ? 'coming up' : dueIn(r.daysLeft).replace(/^Due/, 'due');
+  return { title: `Ledger · A task is ${when}`, body: 'Open Ledger to see it.' };
 }

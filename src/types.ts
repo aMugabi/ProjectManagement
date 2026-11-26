@@ -60,6 +60,11 @@ export interface ReminderSettings {
   /** Also email the daily digest (cloud builds only) to `email`. */
   emailDigest: boolean;
   email: string;
+  /**
+   * Emails, push and system notifications (anything seen outside the app, e.g. on a lock screen
+   * or by the email service) show counts only, never task, project or workspace names.
+   */
+  privateNotifications: boolean;
   updatedAt: number;
 }
 

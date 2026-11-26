@@ -249,6 +249,20 @@ function SettingsPanel({ close }: { close: () => void }) {
 
         <section className={s.section}>
           <div className={s.sectionLabel}>Notifications</div>
+          <label className={s.row}>
+            <span>
+              Private notifications
+              <small>
+                Emails, push and system notifications show counts only, never task, project or workspace names (they
+                can appear on a lock screen or pass through the email service)
+              </small>
+            </span>
+            <input
+              type="checkbox"
+              checked={reminders.privateNotifications}
+              onChange={(e) => updateReminders({ privateNotifications: e.target.checked })}
+            />
+          </label>
           <div className={s.row}>
             <span>
               System notifications

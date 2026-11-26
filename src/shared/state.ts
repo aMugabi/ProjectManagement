@@ -32,6 +32,9 @@ export const DEFAULT_REMINDERS: ReminderSettings = {
   timezone: 'UTC',
   emailDigest: false,
   email: '',
+  // On by default (and for data saved before the setting existed): names stay out of other
+  // companies' systems unless the owner chooses otherwise.
+  privateNotifications: true,
   updatedAt: 0,
 };
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../types';
-import { attentionTasks, computeReminders, nowInZone, parseTime } from './reminders';
+import { attentionTasks, computeReminders, nowInZone, outsideText, parseTime } from './reminders';
 import { normalizeState, type SyncedState } from './state';
 
 function task(id: string, dueDate: string, extra: Partial<Task> = {}): Task {
@@ -97,5 +97,27 @@ describe('time helpers', () => {
     expect(nowInZone('Africa/Kampala', at)).toEqual({ date: '2026-11-04', minutes: 90 });
     expect(nowInZone('UTC', at)).toEqual({ date: '2026-11-03', minutes: 1350 });
     expect(nowInZone('Not/AZone', at)).toEqual({ date: '2026-11-03', minutes: 1350 });
+  });
+});
+
+describe('outsideText', () => {
+  const reminders = computeReminders(state(tasks, { reminders: { enabled: true, digestTime: '08:00', defaultLeadDays: 1 } as SyncedState['reminders'] }), {
+    date: TODAY,
+    minutes: 9 * 60,
+  });
+  const digest = reminders.find((r) => r.kind === 'digest')!;
+  const lead = reminders.find((r) => r.taskId === 'in3-own-lead')!;
+
+  it('shows the full text only when private notifications are explicitly off', () => {
+    expect(outsideText(lead, false)).toEqual({ title: lead.title, body: lead.body });
+    expect(lead.title).toContain('in3-own-lead');
+  });
+
+  it('keeps only counts and timing when private, or when the setting predates this option', () => {
+    for (const setting of [true, undefined]) {
+      expect(outsideText(digest, setting)).toEqual({ title: digest.title, body: 'Open Ledger to see them.' });
+      expect(outsideText(lead, setting)).toEqual({ title: 'Ledger · A task is due in 3 days', body: 'Open Ledger to see it.' });
+    }
+    expect(digest.title).toBe('Ledger · 1 due today, 1 overdue'); // counts only, no names
   });
 });

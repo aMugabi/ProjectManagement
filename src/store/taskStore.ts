@@ -283,6 +283,9 @@ export const useTaskStore = create<TaskStore>()(
       storage: createCloudStorage(),
       // Older versions get stamps of 0 (older than any real edit), tombstones and default reminder settings.
       migrate: (persisted) => normalizeState(persisted) as unknown as TaskStore,
+      // Same-version data is normalised too, so settings added since it was saved (such as
+      // privateNotifications) get their defaults instead of reading as undefined.
+      merge: (persisted, current) => (persisted ? { ...current, ...normalizeState(persisted) } : current),
     },
   ),
 );

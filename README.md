@@ -84,6 +84,10 @@ Ledger warns you about tasks that are overdue, due today or coming up:
 - **Push notifications** that arrive even when Ledger is closed (Vercel deploy only).
 - **Email digest** — one email each morning at the digest time (Vercel deploy only; Settings →
   *Email me the daily digest*). Digest only, never one email per task.
+- **Private notifications** (on by default) — emails, push and system notifications show counts
+  only ("2 due today, 1 overdue", "A task is due tomorrow"), never task, project or workspace
+  names, since they can appear on a lock screen and emails pass through the email service. Turn it
+  off under Settings → Notifications. In-app pop-ups always show the full text.
 
 On iPhone/iPad, push needs Ledger added to the Home Screen and opened from there (iOS 16.4+).
 In Brave, turn on *Use Google services for push messaging* (`brave://settings/privacy`).

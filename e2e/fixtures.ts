@@ -41,6 +41,8 @@ export const REMINDERS_OFF: ReminderSettings = {
   timezone: 'UTC',
   emailDigest: false,
   email: '',
+  // Off in fixtures so tests can see task names; the app's default is on.
+  privateNotifications: false,
   updatedAt: 1,
 };
 export const REMINDERS_ON: ReminderSettings = { ...REMINDERS_OFF, enabled: true };

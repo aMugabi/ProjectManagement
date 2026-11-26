@@ -50,6 +50,10 @@ export function digestEmail(state: SyncedState, now: LocalNow, appUrl: string): 
     upcoming.length && `${upcoming.length} coming up`,
   ].filter(Boolean);
   const subject = `Ledger · ${counts.join(', ')}`;
+  const key = `email-digest:${now.date}`;
+  const to = settings.email.trim();
+
+  if (settings.privateNotifications !== false) return privateDigest({ key, to, subject }, now, appUrl, sections);
 
   const text = [
     `Your Ledger digest for ${now.date}`,
@@ -83,5 +87,44 @@ export function digestEmail(state: SyncedState, now: LocalNow, appUrl: string): 
     `<p style="margin-top:20px"><a href="${esc(appUrl)}" style="background:#b4674a;color:#fffefb;padding:8px 14px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">Open Ledger</a></p>` +
     `<p style="color:#a5a099;font-size:11px">You get this because "Email me the daily digest" is on in Ledger's Settings.</p></div>`;
 
-  return { key: `email-digest:${now.date}`, to: settings.email.trim(), subject, text, html };
+  return { key, to, subject, text, html };
+}
+
+const PRIVATE_NOTE = 'Task names are left out because "Private notifications" is on in Ledger\'s Settings.';
+
+/**
+ * Counts only: no task, project or workspace names, and no per-task links (their ids include
+ * workspace names). The email still passes through the email service and sits in an inbox.
+ */
+function privateDigest(
+  head: Pick<DigestEmail, 'key' | 'to' | 'subject'>,
+  now: LocalNow,
+  appUrl: string,
+  sections: [string, TaskRef[]][],
+): DigestEmail {
+  const shown = sections.filter(([, refs]) => refs.length);
+  const text = [
+    `Your Ledger digest for ${now.date}`,
+    '',
+    ...shown.map(([label, refs]) => `${label}: ${refs.length}`),
+    '',
+    `Open Ledger: ${appUrl}`,
+    PRIVATE_NOTE,
+  ].join('\n');
+  const html =
+    `<div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;color:#1c1b19">` +
+    `<h2 style="font-size:18px;margin:0 0 4px">Your Ledger digest</h2>` +
+    `<div style="color:#8b8780;font-size:13px;margin-bottom:16px">${esc(now.date)}</div>` +
+    `<table style="border-collapse:collapse;font-size:14px">` +
+    shown
+      .map(
+        ([label, refs]) =>
+          `<tr><td style="padding:4px 16px 4px 0">${esc(label)}</td>` +
+          `<td style="padding:4px 0;font-family:monospace;font-weight:600">${refs.length}</td></tr>`,
+      )
+      .join('') +
+    `</table>` +
+    `<p style="margin-top:20px"><a href="${esc(appUrl)}" style="background:#b4674a;color:#fffefb;padding:8px 14px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">Open Ledger</a></p>` +
+    `<p style="color:#a5a099;font-size:11px">${esc(PRIVATE_NOTE)}</p></div>`;
+  return { ...head, text, html };
 }

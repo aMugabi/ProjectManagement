@@ -111,7 +111,8 @@ test.describe('reminders and notifications (local-only build)', () => {
     await expect(dialog.getByText('Email me the daily digest')).toHaveCount(0);
   });
 
-  test('raises a system notification once while Ledger is in a background tab', async ({ page }) => {
+  /** Records system notification titles instead of showing them, with the tab reported as hidden. */
+  async function captureNotifications(page: import('@playwright/test').Page) {
     await page.addInitScript(() => {
       const shown: string[] = [];
       (window as unknown as { __shown: string[] }).__shown = shown;
@@ -131,6 +132,12 @@ test.describe('reminders and notifications (local-only build)', () => {
         };
       }
     });
+  }
+  const shownTitles = (page: import('@playwright/test').Page) =>
+    page.evaluate(() => (window as unknown as { __shown: string[] }).__shown);
+
+  test('raises a system notification once while Ledger is in a background tab', async ({ page }) => {
+    await captureNotifications(page);
     await seed(page, stored({ tasks: dueSoon(), reminders: REMINDERS_ON }));
     await page.goto('dashboard');
     await expect.poll(() => page.evaluate(() => (window as unknown as { __shown: string[] }).__shown)).toEqual([
@@ -140,6 +147,24 @@ test.describe('reminders and notifications (local-only build)', () => {
 
     await page.reload();
     await page.waitForTimeout(1500);
-    expect(await page.evaluate(() => (window as unknown as { __shown: string[] }).__shown)).toEqual([]);
+    expect(await shownTitles(page)).toEqual([]);
+  });
+
+  test('private notifications leave task names out of system notifications', async ({ page }) => {
+    await captureNotifications(page);
+    await seed(page, stored({ tasks: dueSoon(), reminders: { ...REMINDERS_ON, privateNotifications: true } }));
+    await page.goto('dashboard');
+    await expect.poll(() => shownTitles(page)).toEqual(['Ledger · 1 due today, 1 overdue', 'Ledger · A task is due tomorrow']);
+  });
+
+  test('private notifications are on by default and can be turned off in Settings', async ({ page }) => {
+    const { privateNotifications: _omitted, ...older } = REMINDERS_ON;
+    await seed(page, stored({ reminders: older as typeof REMINDERS_ON }));
+    await page.goto('dashboard');
+    await openSettings(page);
+    const box = page.getByRole('checkbox', { name: /Private notifications/ });
+    await expect(box).toBeChecked();
+    await box.uncheck();
+    await expect.poll(async () => (await savedState(page)).state.reminders.privateNotifications).toBe(false);
   });
 });

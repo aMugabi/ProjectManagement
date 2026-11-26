@@ -63,7 +63,8 @@ export function useReminders() {
   useEffect(() => {
     const tick = () => {
       if (!useTaskStore.persist.hasHydrated()) return;
-      const due = computeReminders(useTaskStore.getState(), deviceNow());
+      const state = useTaskStore.getState();
+      const due = computeReminders(state, deviceNow());
       const log = loadLog();
       const now = Date.now();
       const visible = due.filter((r) => !log[r.key]?.dismissedAt && !((log[r.key]?.snoozeUntil ?? 0) > now));
@@ -73,7 +74,7 @@ export function useReminders() {
         for (const r of visible) {
           if (log[r.key]?.notifiedAt) continue;
           log[r.key] = { ...log[r.key], at: now, notifiedAt: now };
-          void showSystemNotification(r);
+          void showSystemNotification(r, state.reminders.privateNotifications);
         }
       }
       saveLog(log);
