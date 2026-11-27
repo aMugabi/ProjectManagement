@@ -1,0 +1,30 @@
+[
+  {
+    "name": "every subscription counts as made with the current key",
+    "file": "src/lib/push.ts",
+    "find": "  const have = sub.options?.applicationServerKey;\n  if (have) {",
+    "replace": "  const have = sub.options?.applicationServerKey;\n  if (have) return true;\n  if (have) {",
+    "test": "npx playwright test e2e/cloud/push.spec.ts --project=cloud-chromium --reporter=dot"
+  },
+  {
+    "name": "no subscription counts as made with the current key (replaced on every start)",
+    "file": "src/lib/push.ts",
+    "find": "    return a.length === b.length && a.every((x, i) => x === b[i]);",
+    "replace": "    return false && a.length === b.length && a.every((x, i) => x === b[i]);",
+    "test": "npx playwright test e2e/cloud/push.spec.ts --project=cloud-chromium --reporter=dot"
+  },
+  {
+    "name": "startup never replaces an old-key subscription",
+    "file": "src/lib/push.ts",
+    "find": "  if (publicKey && !madeWithKey(sub, publicKey)) sub = await subscribe(reg, publicKey).catch(() => null);",
+    "replace": "  void publicKey;",
+    "test": "npx playwright test e2e/cloud/push.spec.ts --project=cloud-chromium --reporter=dot"
+  },
+  {
+    "name": "an old-key subscription is kept instead of replaced",
+    "file": "src/lib/push.ts",
+    "find": "    sub = null;\n  }",
+    "replace": "  }",
+    "test": "npx playwright test e2e/cloud/push.spec.ts --project=cloud-chromium --reporter=dot"
+  }
+]

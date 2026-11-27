@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import webpush from 'web-push';
 import { expect, openSettings, seed, stored, test } from '../fixtures';
 import { FakeCloud, SESSION } from '../fakeCloud';
 
@@ -22,20 +23,29 @@ const ENDPOINT = 'https://push.example.test/device-1';
 async function fakePushService(page: Page, permission: 'granted' | 'denied' = 'granted', failWith?: string) {
   await page.addInitScript(
     ({ endpoint, permission, failWith }) => {
-      const make = () => ({
-        endpoint,
-        toJSON: () => ({ endpoint, keys: { p256dh: 'BKeyForTests', auth: 'authsecret' } }),
-        unsubscribe: async () => {
-          localStorage.removeItem('__fake_push_sub');
-          return true;
-        },
-      });
+      // Like a real subscription, it reports the server key it was made with (options.applicationServerKey).
+      const make = () => {
+        const key = localStorage.getItem('__fake_push_key');
+        return {
+          endpoint,
+          options: { userVisibleOnly: true, applicationServerKey: key ? new Uint8Array(JSON.parse(key)).buffer : null },
+          toJSON: () => ({ endpoint, keys: { p256dh: 'BKeyForTests', auth: 'authsecret' } }),
+          unsubscribe: async () => {
+            localStorage.removeItem('__fake_push_sub');
+            localStorage.removeItem('__fake_push_key');
+            return true;
+          },
+        };
+      };
       PushManager.prototype.getSubscription = async () =>
         (localStorage.getItem('__fake_push_sub') ? make() : null) as unknown as PushSubscription;
       PushManager.prototype.subscribe = async (opts?: PushSubscriptionOptionsInit) => {
         if (failWith) throw new DOMException(failWith, 'AbortError');
-        (window as unknown as { __keyLength: number }).__keyLength = (opts!.applicationServerKey as Uint8Array).length;
+        const key = opts!.applicationServerKey as Uint8Array;
+        (window as unknown as { __keyLength: number }).__keyLength = key.length;
         localStorage.setItem('__fake_push_sub', '1');
+        localStorage.setItem('__fake_push_key', JSON.stringify([...key]));
+        localStorage.setItem('__fake_subscribes', String(Number(localStorage.getItem('__fake_subscribes') ?? 0) + 1));
         return make() as unknown as PushSubscription;
       };
       Object.defineProperty(Notification, 'permission', { get: () => (permission === 'denied' ? 'denied' : 'default'), configurable: true });
@@ -92,6 +102,34 @@ test.describe('cloud build: push notification settings', () => {
     cloud.subs.clear();
     await page.reload();
     await expect.poll(() => [...cloud.subs.keys()]).toEqual([ENDPOINT]);
+  });
+
+  test('replaces a subscription made with an older server key when Ledger opens', async ({ page }) => {
+    await fakePushService(page);
+    const dialog = await openPushRow(page);
+    await dialog.getByRole('button', { name: 'Turn on' }).last().click();
+    await expect(dialog).toContainText('On for this device');
+    // The server's key changes (new VAPID keys): pushes to the old subscription would all be refused.
+    const fresh = webpush.generateVAPIDKeys().publicKey;
+    cloud.publicKey = fresh;
+    cloud.subs.clear();
+    await page.reload();
+    const usedKey = () => page.evaluate(() => JSON.parse(localStorage.getItem('__fake_push_key') ?? '[]') as number[]);
+    await expect.poll(usedKey).toEqual([...Buffer.from(fresh, 'base64url')]);
+    await expect.poll(() => [...cloud.subs.keys()]).toEqual([ENDPOINT]);
+    expect(await page.evaluate(() => localStorage.getItem('__fake_subscribes'))).toBe('2');
+    expect(await page.evaluate(() => localStorage.getItem('ledger-push-active'))).toBe('1');
+  });
+
+  test('keeps a subscription made with the current key when Ledger opens', async ({ page }) => {
+    await fakePushService(page);
+    const dialog = await openPushRow(page);
+    await dialog.getByRole('button', { name: 'Turn on' }).last().click();
+    await expect(dialog).toContainText('On for this device');
+    cloud.subs.clear();
+    await page.reload();
+    await expect.poll(() => [...cloud.subs.keys()]).toEqual([ENDPOINT]); // re-registered, not replaced
+    expect(await page.evaluate(() => localStorage.getItem('__fake_subscribes'))).toBe('1');
   });
 
   test("explains when push isn't configured on the server", async ({ page }) => {

@@ -53,6 +53,65 @@ function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
   return bytes;
 }
 
+/** The server key this device last subscribed with, for browsers that don't report it. */
+const PUSH_KEY = 'ledger-push-key';
+
+function rememberKey(publicKey: string) {
+  try {
+    localStorage.setItem(PUSH_KEY, publicKey);
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Whether `sub` was made with the server's current public key. The push service refuses every
+ * message signed with a different key, so a subscription from before a key change is useless.
+ */
+function madeWithKey(sub: PushSubscription, publicKey: string): boolean {
+  const have = sub.options?.applicationServerKey;
+  if (have) {
+    const a = new Uint8Array(have);
+    const b = keyBytes(publicKey);
+    return a.length === b.length && a.every((x, i) => x === b[i]);
+  }
+  try {
+    return localStorage.getItem(PUSH_KEY) === publicKey;
+  } catch {
+    return false;
+  }
+}
+
+async function publicKeyFromServer(): Promise<string | null> {
+  const res = await api('GET');
+  if (!res.ok) throw new Error(`the server answered ${res.status}`);
+  return ((await res.json()) as { publicKey: string | null }).publicKey;
+}
+
+/** This device's subscription for `publicKey`: the existing one, or a new one replacing one made with another key. */
+async function subscribe(reg: ServiceWorkerRegistration, publicKey: string): Promise<PushSubscription> {
+  let sub = await reg.pushManager.getSubscription();
+  if (sub && !madeWithKey(sub, publicKey)) {
+    await api('DELETE', '', { endpoint: sub.endpoint }).catch(() => undefined);
+    await sub.unsubscribe().catch(() => false);
+    sub = null;
+  }
+  try {
+    sub ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
+  } catch (e) {
+    // Chromium-family browsers say this when they have no working push service: Brave with
+    // Google push messaging turned off, Linux/"ungoogled" Chromium builds, or a network blocking it.
+    if (e instanceof Error && /push service/i.test(e.message)) {
+      throw new Error(
+        "this browser has no working push service. In Brave, turn on \"Use Google services for push messaging\" (brave://settings/privacy) and restart; otherwise use Chrome, Edge, Firefox or your phone, or try another network",
+      );
+    }
+    throw e;
+  }
+  rememberKey(publicKey);
+  return sub;
+}
+
 export async function pushStatus(): Promise<PushStatus> {
   if (isIosBrowserTab()) return 'needs-install';
   const reg = await registration();
@@ -69,24 +128,10 @@ export async function enablePush(): Promise<PushStatus> {
   if (!reg) return 'unsupported';
   if ((await requestNotificationPermission()) !== 'granted') return 'blocked';
 
-  const res = await api('GET');
-  if (!res.ok) throw new Error(`the server answered ${res.status}`);
-  const { publicKey } = (await res.json()) as { publicKey: string | null };
+  const publicKey = await publicKeyFromServer();
   if (!publicKey) return 'not-configured';
 
-  let sub = await reg.pushManager.getSubscription();
-  try {
-    sub ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
-  } catch (e) {
-    // Chromium-family browsers say this when they have no working push service: Brave with
-    // Google push messaging turned off, Linux/"ungoogled" Chromium builds, or a network blocking it.
-    if (e instanceof Error && /push service/i.test(e.message)) {
-      throw new Error(
-        "this browser has no working push service. In Brave, turn on \"Use Google services for push messaging\" (brave://settings/privacy) and restart; otherwise use Chrome, Edge, Firefox or your phone, or try another network",
-      );
-    }
-    throw e;
-  }
+  const sub = await subscribe(reg, publicKey);
   const saved = await api('POST', '', { subscription: sub.toJSON() });
   if (!saved.ok) throw new Error(`the server couldn't save this device (${saved.status})`);
   setActive(true);
@@ -113,11 +158,17 @@ export async function sendTestPush(): Promise<boolean> {
 
 /**
  * On startup: re-register an existing subscription (in case the server lost it, or the browser
- * rotated it) and keep the local "push active" flag in step with reality.
+ * rotated it), replacing it first if it was made with an older server key, and keep the local
+ * "push active" flag in step with reality.
  */
 export async function refreshPushSubscription(): Promise<void> {
   if (!getAuthToken()) return;
-  const sub = await (await registration())?.pushManager.getSubscription();
+  const reg = await registration();
+  let sub = (await reg?.pushManager.getSubscription()) ?? null;
+  setActive(Boolean(sub));
+  if (!reg || !sub) return;
+  const publicKey = await publicKeyFromServer().catch(() => null);
+  if (publicKey && !madeWithKey(sub, publicKey)) sub = await subscribe(reg, publicKey).catch(() => null);
   setActive(Boolean(sub));
   if (sub) await api('POST', '', { subscription: sub.toJSON() }).catch(() => undefined);
 }
