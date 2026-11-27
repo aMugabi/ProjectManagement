@@ -13,7 +13,7 @@ const fakeKv = {
   }),
   del: vi.fn(async (key: string) => Number(redis.delete(key))),
 };
-const sendPush = vi.fn(async () => 1);
+const sendPush = vi.fn(async (): Promise<{ accepted: number; failed: number }> => ({ accepted: 1, failed: 0 }));
 const sendEmail = vi.fn(async (_email: { to: string; subject: string }) => {});
 
 vi.mock('./_lib/session.js', () => ({ kv: fakeKv }));
@@ -120,5 +120,30 @@ describe('POST /api/reminders', () => {
     expect(await retried.json()).toEqual({ due: 1, sent: 1, emailed: 0 });
     expect(sendPush).toHaveBeenCalledTimes(2);
     errors.mockRestore();
+  });
+
+  it('gives a reminder back when no device took it, without failing the run', async () => {
+    const now = seedWithEmail();
+    sendPush.mockResolvedValueOnce({ accepted: 0, failed: 0 }); // no device registered yet
+    const quiet = await call();
+    expect(quiet.status).toBe(200);
+    expect(await quiet.json()).toEqual({ due: 1, sent: 0, emailed: 1 });
+    expect(redis.has(`ledger:sent:digest:${now.date}`)).toBe(false);
+    // A device is turned on: the next run delivers the day's digest, once.
+    expect(await (await call()).json()).toEqual({ due: 1, sent: 1, emailed: 0 });
+    expect(await (await call()).json()).toEqual({ due: 1, sent: 0, emailed: 0 });
+    expect(sendPush).toHaveBeenCalledTimes(2);
+  });
+
+  it('fails the run when every delivery to registered devices failed, and retries', async () => {
+    const now = seedWithEmail();
+    sendPush.mockResolvedValueOnce({ accepted: 0, failed: 2 });
+    const failed = await call();
+    expect(failed.status).toBe(502);
+    expect(await failed.json()).toEqual({ due: 1, sent: 0, emailed: 1, error: 'push failed' });
+    expect(redis.has(`ledger:sent:digest:${now.date}`)).toBe(false);
+    const retried = await call();
+    expect(retried.status).toBe(200);
+    expect(await retried.json()).toEqual({ due: 1, sent: 1, emailed: 0 });
   });
 });

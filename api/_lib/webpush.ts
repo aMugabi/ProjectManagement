@@ -41,17 +41,24 @@ export function isSubscription(v: unknown): v is PushSubscription {
   );
 }
 
+/** How a push went: deliveries the push services accepted, and ones that failed (not counting devices that are gone). */
+export interface PushResult {
+  accepted: number;
+  failed: number;
+}
+
 /**
  * Sends to every one of the user's saved subscriptions (or only `onlyEndpoint`). Subscriptions the
- * push service reports as gone (404/410) are deleted. Returns how many deliveries were accepted.
+ * push service reports as gone (404/410) are deleted, and don't count as failures.
  */
-export async function sendPush(payload: PushPayload, userId: string, onlyEndpoint?: string): Promise<number> {
-  if (!configured()) return 0;
+export async function sendPush(payload: PushPayload, userId: string, onlyEndpoint?: string): Promise<PushResult> {
+  if (!configured()) return { accepted: 0, failed: 0 };
   const subs = (await pushSubscriptions(userId)).filter((s) => isSubscription(s) && (!onlyEndpoint || s.endpoint === onlyEndpoint));
 
   const body = JSON.stringify(payload);
   const results = await Promise.allSettled(subs.map((s) => webpush.sendNotification(s, body, { TTL: 12 * 60 * 60 })));
   let accepted = 0;
+  let failed = 0;
   await Promise.all(
     results.map(async (r, i) => {
       if (r.status === 'fulfilled') {
@@ -60,8 +67,11 @@ export async function sendPush(payload: PushPayload, userId: string, onlyEndpoin
       }
       const status = (r.reason as { statusCode?: number })?.statusCode;
       if (status === 404 || status === 410) await removePushSubscription(userId, subs[i].endpoint);
-      else console.error('Push delivery failed', status, (r.reason as Error)?.message);
+      else {
+        failed++;
+        console.error('Push delivery failed', status, (r.reason as Error)?.message);
+      }
     }),
   );
-  return accepted;
+  return { accepted, failed };
 }

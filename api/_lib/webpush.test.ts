@@ -1,7 +1,11 @@
 import webpush from 'web-push';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('./store.js', () => ({ pushSubscriptions: async () => [], removePushSubscription: async () => {} }));
+const store = vi.hoisted(() => ({
+  pushSubscriptions: vi.fn(async (): Promise<unknown[]> => []),
+  removePushSubscription: vi.fn(async (_user: string, _endpoint: string) => {}),
+}));
+vi.mock('./store.js', () => store);
 
 const { sendPush, urlSafeKey, vapidPublicKey } = await import('./webpush');
 
@@ -29,7 +33,35 @@ describe('VAPID keys', () => {
     process.env.VAPID_PUBLIC_KEY = padded(keys.publicKey);
     process.env.VAPID_PRIVATE_KEY = privateKey;
     process.env.VAPID_SUBJECT = 'mailto:me@example.com';
-    await expect(sendPush({ title: 't', body: 'b', tag: 'x', path: 'dashboard' }, 'owner')).resolves.toBe(0);
+    await expect(sendPush({ title: 't', body: 'b', tag: 'x', path: 'dashboard' }, 'owner')).resolves.toEqual({ accepted: 0, failed: 0 });
     expect(vapidPublicKey()).toBe(keys.publicKey); // what the browser subscribes with
+  });
+});
+
+describe('sending', () => {
+  const sub = (name: string) => ({ endpoint: `https://push.example/${name}`, keys: { p256dh: 'k', auth: 'a' } });
+
+  it('counts accepted and failed deliveries; a device that is gone is removed and not a failure', async () => {
+    const keys = webpush.generateVAPIDKeys();
+    process.env.VAPID_PUBLIC_KEY = keys.publicKey;
+    process.env.VAPID_PRIVATE_KEY = keys.privateKey;
+    store.pushSubscriptions.mockResolvedValueOnce([sub('ok'), sub('gone'), sub('broken')]);
+    const send = vi.spyOn(webpush, 'sendNotification').mockImplementation(async (s) => {
+      if (s.endpoint.endsWith('gone')) throw Object.assign(new Error('gone'), { statusCode: 410 });
+      if (s.endpoint.endsWith('broken')) throw Object.assign(new Error('server error'), { statusCode: 500 });
+      return { statusCode: 201, body: '', headers: {} };
+    });
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(sendPush({ title: 't', body: 'b', tag: 'x', path: 'dashboard' }, 'owner')).resolves.toEqual({ accepted: 1, failed: 1 });
+    expect(store.removePushSubscription).toHaveBeenCalledWith('owner', 'https://push.example/gone');
+    expect(store.removePushSubscription).toHaveBeenCalledTimes(1);
+    send.mockRestore();
+    errors.mockRestore();
+  });
+
+  it('sends nothing, and reports nothing failed, without push keys', async () => {
+    store.pushSubscriptions.mockClear();
+    await expect(sendPush({ title: 't', body: 'b', tag: 'x', path: 'dashboard' }, 'owner')).resolves.toEqual({ accepted: 0, failed: 0 });
+    expect(store.pushSubscriptions).not.toHaveBeenCalled();
   });
 });

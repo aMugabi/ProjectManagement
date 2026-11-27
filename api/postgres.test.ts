@@ -29,6 +29,12 @@ const sendEmail = vi.fn(async (email: { to: string; subject: string; text: strin
 });
 const A_ADDRESS = `digest-a-${RUN}@example.org`;
 vi.mock('./_lib/email.js', () => ({ emailConfigured: () => true, sendEmail }));
+/** No push service here: a push counts as delivered to a device unless a test says otherwise. */
+const pushResult = { accepted: 1, failed: 0 };
+vi.mock('./_lib/webpush.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./_lib/webpush.js')>()),
+  sendPush: async () => ({ ...pushResult }),
+}));
 
 interface Reply {
   status: number;
@@ -185,6 +191,23 @@ describe.skipIf(!OWNER_URL || !APP_URL)('the API on Postgres (TEST_DB_OWNER_URL,
     expect(toA()).toBe(2); // and never again that day
     errors.mockRestore();
   }, 60_000); // the timer runs for every user, and repeated runs leave many on this database
+
+  it('gives a push back when no device took it, so a device turned on later still gets it', async () => {
+    const run = () => reminders(new Request('https://ledger.test/api/reminders', { method: 'POST', headers: { authorization: 'Bearer s3cret' } }));
+    const today = `digest:${nowInZone('Africa/Kampala').date}`;
+    const claims = async () => (await owner.query('select reminder_key from reminders_sent where user_id = $1 and reminder_key = $2', [users.a.id, today])).rowCount;
+    await owner.query('delete from reminders_sent where user_id = $1 and reminder_key = $2', [users.a.id, today]);
+    Object.assign(pushResult, { accepted: 0, failed: 0 }); // no device registered yet
+    try {
+      expect((await run()).status).toBe(200); // nothing wrong: nobody to tell
+      expect(await claims()).toBe(0);
+      Object.assign(pushResult, { accepted: 1, failed: 0 }); // a device is turned on
+      await run();
+      expect(await claims()).toBe(1);
+    } finally {
+      Object.assign(pushResult, { accepted: 1, failed: 0 });
+    }
+  }, 60_000);
 
   it('signs out one device, or every device with its push subscriptions', async () => {
     const one = await signInAs(users.a);

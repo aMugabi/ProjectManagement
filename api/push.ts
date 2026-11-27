@@ -32,7 +32,7 @@ export default async function handler(req: any, res: any) {
       res.status(400).json({ error: 'endpoint required' });
       return;
     }
-    const sent = await sendPush(
+    const { accepted: sent } = await sendPush(
       { title: 'Ledger test notification', body: 'Push notifications are working on this device.', tag: 'test', path: 'dashboard' },
       user,
       endpoint,

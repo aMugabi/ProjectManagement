@@ -64,8 +64,14 @@ export async function POST(request: Request): Promise<Response> {
       // notifications leave the names out.
       const { title, body } = outsideText(r, state.reminders.privateNotifications);
       try {
-        await sendPush({ title, body, tag: r.key, path: r.url }, userId);
-        sent++;
+        const push = await sendPush({ title, body, tag: r.key, path: r.url }, userId);
+        if (push.accepted > 0) sent++;
+        else {
+          // No device took it: none is registered yet, or every delivery failed. Given back, so
+          // the next run tries again: a device turned on later still gets the day's digest.
+          await releaseReminder(userId, r.key);
+          if (push.failed > 0) pushFailed = true;
+        }
       } catch (e) {
         // Given back, so the next run tries again: claimed and never sent, it would be lost for
         // days. A bad push setting (such as a malformed key) fails every push this way.

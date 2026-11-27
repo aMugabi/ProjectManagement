@@ -2,15 +2,15 @@
   {
     "name": "a failed push isn't given back (the reminder is lost for days)",
     "file": "api/reminders.ts",
-    "find": "await releaseReminder(userId, r.key);",
-    "replace": "void r;",
+    "find": "        await releaseReminder(userId, r.key);\n        console.error('Push failed:'",
+    "replace": "        void r;\n        console.error('Push failed:'",
     "test": "npx vitest run api/reminders.test.ts"
   },
   {
     "name": "a failed push doesn't fail the run (nobody is told)",
     "file": "api/reminders.ts",
-    "find": "pushFailed = true;",
-    "replace": "pushFailed = false;",
+    "find": "console.error('Push failed:', (e as Error).message);\n        pushFailed = true;",
+    "replace": "console.error('Push failed:', (e as Error).message);\n        pushFailed = false;",
     "test": "npx vitest run api/reminders.test.ts"
   },
   {
@@ -46,6 +46,48 @@
     "file": "api/_lib/webpush.ts",
     "find": "? urlSafeKey(process.env.VAPID_PUBLIC_KEY) :",
     "replace": "? process.env.VAPID_PUBLIC_KEY :",
+    "test": "npx vitest run api/_lib/webpush.test.ts"
+  },
+  {
+    "name": "a push no device took is kept as sent (lost for the day)",
+    "file": "api/reminders.ts",
+    "find": "          await releaseReminder(userId, r.key);\n          if (push.failed > 0) pushFailed = true;",
+    "replace": "          if (push.failed > 0) pushFailed = true;",
+    "test": "npx vitest run api/reminders.test.ts"
+  },
+  {
+    "name": "every delivery failing doesn't fail the run",
+    "file": "api/reminders.ts",
+    "find": "if (push.failed > 0) pushFailed = true;",
+    "replace": "void push.failed;",
+    "test": "npx vitest run api/reminders.test.ts"
+  },
+  {
+    "name": "no device counts as a failure (runs fail before push is turned on)",
+    "file": "api/reminders.ts",
+    "find": "if (push.failed > 0) pushFailed = true;",
+    "replace": "pushFailed = true;",
+    "test": "npx vitest run api/reminders.test.ts"
+  },
+  {
+    "name": "a push counts as sent with no device",
+    "file": "api/reminders.ts",
+    "find": "if (push.accepted > 0) sent++;",
+    "replace": "if (push.accepted >= 0) sent++;",
+    "test": "npx vitest run api/reminders.test.ts"
+  },
+  {
+    "name": "failed deliveries not counted",
+    "file": "api/_lib/webpush.ts",
+    "find": "        failed++;\n",
+    "replace": "",
+    "test": "npx vitest run api/_lib/webpush.test.ts"
+  },
+  {
+    "name": "a device that is gone counts as a failure",
+    "file": "api/_lib/webpush.ts",
+    "find": "if (status === 404 || status === 410) await removePushSubscription(userId, subs[i].endpoint);",
+    "replace": "if (status === 404 || status === 410) { failed++; await removePushSubscription(userId, subs[i].endpoint); }",
     "test": "npx vitest run api/_lib/webpush.test.ts"
   }
 ]
