@@ -1,7 +1,8 @@
-# Ledger's Postgres database (build plan Step 1a)
+# Ledger's Postgres database
 
-Plain PostgreSQL 15 or later. Not used by the app yet: the current deploy still stores everything
-in Upstash Redis. The move is planned in the build plan (Step 1a), with a dry run on a copy first.
+Plain PostgreSQL 15 or later. The production deploy has used it since 27 Nov 2026 (a managed
+Postgres in Frankfurt, beside the functions); the app uses it whenever `DATABASE_URL` is set, and
+the old Upstash Redis store otherwise.
 
 - `migrations/`: applied in order by the owner role (the role that owns every table).
 - `tests/*_test.sql`: pgTAP tests, each in its own rolled-back transaction, sharing
@@ -64,30 +65,47 @@ run them with the skill's `break-code.py` (the second inside the namespace above
 shadowed: sync stripping `legacy_*` keys from uploads (each type's schema already refuses unknown
 fields).
 
-## Moving the data (Step 1a)
-1. `npm run backup`, then `npm run backup -- --verify FILE`.
+## Moving the data from Redis (done for production on 27 Nov 2026)
+For another deploy, or a fresh database:
+
+1. `npm run backup`, then `npm run backup -- --verify FILE`. Stop editing until step 5 is live:
+   later edits would stay in Redis only.
 2. `DATABASE_OWNER_URL=<owner> npm run db:migrate` (applies each migration once; records them in
    `migrations.applied`, which the app role can't see).
 3. `DATABASE_OWNER_URL=<owner> npm run db:import -- --email you@example.org --from FILE --dry-run`:
    does everything, prints counts per workspace and the before/after checksums, rolls back.
 4. The same without `--dry-run`, with `DATABASE_URL=<app role>` (checks it again through the app's
-   policies). Sign-in on Postgres requires MFA, so the import also needs `AUTH_PASSWORD_HASH`,
-   `AUTH_TOTP_SECRET` and `AUTH_RECOVERY_CODES` (the values set in Vercel today) and
-   `MFA_ENCRYPTION_KEY` (32 random bytes, base64: `openssl rand -base64 32`), which encrypts the
-   authenticator key in the database. One "baseline" change-log entry per row marks where history
-   starts. A second import for the same email is refused.
+   policies). The import also needs `AUTH_PASSWORD_HASH`, `AUTH_TOTP_SECRET` and
+   `AUTH_RECOVERY_CODES` and `MFA_ENCRYPTION_KEY` (32 random bytes, base64:
+   `openssl rand -base64 32`), which encrypts the authenticator key in the database. Hidden values
+   in Vercel can't be read back, so make them again if needed with
+   `npm run hash-password -- --save DIR` and `npm run setup-mfa -- --save DIR` (private files,
+   never printed) and pass them as `"$(cat DIR/NAME)"`. One "baseline" change-log entry per row
+   marks where history starts. A second import for the same email is refused.
 5. In Vercel (Production), set `DATABASE_URL` (the app role's connection string) and the same
    `MFA_ENCRYPTION_KEY`, and redeploy. With `DATABASE_URL` set, every /api function uses Postgres
-   (`api/_lib/store.ts`): sign-in asks for email, password and code; sessions, push subscriptions
-   and reminder claims live in Postgres too. Every device signs in again once (old sessions were
-   in Redis). Unset `DATABASE_URL` and redeploy to go back to Redis, which the move never changes.
+   (`api/_lib/store.ts`): sign-in asks for email, password and code (unless `AUTH_MFA=off`);
+   sessions, push subscriptions and reminder claims live in Postgres too. Every device signs in
+   again once and turns push on again (sessions and push subscriptions stay in Redis). Unset
+   `DATABASE_URL` and redeploy to go back to Redis, which the move never changes.
+6. Check it: `/api/health` answers `"store":"postgres","database":"ok"`, a sign-in works, and the
+   reminders workflow answers 200.
 
-## Setting up a real database (when the host is chosen)
-1. Create the database; run the migrations as its owner.
-2. Create the app's login role, a member of `ledger_app` and nothing else:
+## Setting up a database
+1. **Rehearse first.** A hosted database's owner is not a superuser (it may create roles and
+   databases and bypass row-level security), while the test container's is. In the container,
+   create a role with those rights and a database it owns, apply every migration as that role,
+   create the app's login role as it, and check the app role from inside: not a superuser, no
+   bypass of row-level security, no workspaces with no user, no creating tables.
+2. Create the database; run the migrations as its owner
+   (`DATABASE_OWNER_URL="$(cat FILE)" npm run db:migrate`; a second run must say "Up to date").
+3. Create the app's login role, a member of `ledger_app` and nothing else, with a random
+   password written to a private file before it is used:
    `create role ledger_app_login login password '<long random>' in role ledger_app;`
-3. Give the app only that role's connection string (`DATABASE_URL`); keep the owner's for
-   migrations and the import.
+4. Give the app only that role's connection string (`DATABASE_URL`), through the host's
+   connection pooler and with `sslmode=verify-full`; the app's per-request setting and locks last
+   one transaction, so a transaction pooler is fine. Keep the owner's connection string (direct,
+   not pooled) in a private file outside this repository, for migrations, imports and erasures.
 
 ## Erasing a person's name (retention)
 Decided in Step 1b: items are kept (soft delete, never purged); change-log entries are archived
