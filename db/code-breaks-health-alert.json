@@ -1,0 +1,51 @@
+[
+  {
+    "name": "no retry: one blip raises the alarm",
+    "file": "scripts/health-check.sh",
+    "find": "  sleep \"$RETRY_SECONDS\"\n  status=$(probe)\n",
+    "replace": "  sleep \"$RETRY_SECONDS\"\n",
+    "test": "npx vitest run scripts/health-check.test.mjs"
+  },
+  {
+    "name": "the check's own network failure blames Ledger",
+    "file": "scripts/health-check.sh",
+    "find": "  if [ \"$ref\" != \"200\" ]; then",
+    "replace": "  if false; then",
+    "test": "npx vitest run scripts/health-check.test.mjs"
+  },
+  {
+    "name": "an unreachable Ledger never raises the alarm",
+    "file": "scripts/health-check.sh",
+    "find": "  if [ \"$ref\" != \"200\" ]; then",
+    "replace": "  if true; then",
+    "test": "npx vitest run scripts/health-check.test.mjs"
+  },
+  {
+    "name": "a failing database gets no reason",
+    "file": "scripts/health-check.sh",
+    "find": "[ \"$database\" = \"failing\" ]",
+    "replace": "[ \"$database\" = \"broken\" ]",
+    "test": "npx vitest run scripts/health-check.test.mjs"
+  },
+  {
+    "name": "unusable push keys get no reason",
+    "file": "scripts/health-check.sh",
+    "find": "[ \"$push\" = \"invalid\" ]",
+    "replace": "[ \"$push\" = \"bad\" ]",
+    "test": "npx vitest run scripts/health-check.test.mjs"
+  },
+  {
+    "name": "the whole answer goes into the public log",
+    "file": "scripts/health-check.sh",
+    "find": "echo \"Ledger's health check answered HTTP $status\"",
+    "replace": "echo \"Ledger's health check answered HTTP $status: $(cat \"$body\")\"",
+    "test": "npx vitest run scripts/health-check.test.mjs"
+  },
+  {
+    "name": "an unhealthy Ledger passes",
+    "file": "scripts/health-check.sh",
+    "find": "for r in \"${reasons[@]}\"; do echo \"::error::Ledger is not healthy (HTTP $status). $r\"; done\nexit 1",
+    "replace": "for r in \"${reasons[@]}\"; do echo \"::error::Ledger is not healthy (HTTP $status). $r\"; done\nexit 0",
+    "test": "npx vitest run scripts/health-check.test.mjs"
+  }
+]

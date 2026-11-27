@@ -1,0 +1,33 @@
+name: Health check
+
+# Calls Ledger's public /api/health twice an hour (scripts/health-check.sh). The run fails, and
+# GitHub emails the owner, when Ledger is not healthy twice in a row a minute apart; each failure
+# says in plain words what failed and how to confirm it. If this runner's own network is down, it
+# says so and passes. GitHub starts scheduled runs late and sometimes skips them, so in practice
+# it checks a few times a day: this is an alert, not a guarantee. Each call wakes the database,
+# so don't make it more frequent. "Run workflow" on the Actions tab runs it by hand.
+on:
+  schedule:
+    - cron: '23,53 * * * *' # off the hour: GitHub's scheduler is busiest at :00
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: health
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/health-check.sh
+          sparse-checkout-cone-mode: false
+      - name: Call /api/health
+        env:
+          LEDGER_URL: ${{ vars.LEDGER_URL || 'https://mugabi-ledger.vercel.app' }}
+        run: bash scripts/health-check.sh
