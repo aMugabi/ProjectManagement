@@ -33,5 +33,40 @@
     "find": ".filter(([n]) => n > 0)",
     "replace": "",
     "test": "npx vitest run scripts/backup.test.mjs"
+  },
+  {
+    "name": "sign-in sends no email (the break found after the cut-over)",
+    "file": "scripts/backup.mjs",
+    "find": "  if (needsEmail) body.email = email;\n",
+    "replace": "",
+    "test": "npx vitest run scripts/backup.test.mjs"
+  },
+  {
+    "name": "LEDGER_EMAIL is ignored",
+    "file": "scripts/backup.mjs",
+    "find": "(env.LEDGER_EMAIL?.trim() || (await ask('Ledger email: ')))",
+    "replace": "(await ask('Ledger email: '))",
+    "test": "npx vitest run scripts/backup.test.mjs"
+  },
+  {
+    "name": "a code is sent while it is switched off",
+    "file": "scripts/backup.mjs",
+    "find": "  if (needsCode) body.code = code;\n",
+    "replace": "  body.code = code;\n",
+    "test": "npx vitest run scripts/backup.test.mjs"
+  },
+  {
+    "name": "unreadable sign-in options are guessed instead of stopping",
+    "file": "scripts/backup.mjs",
+    "find": "      throw new Error(`Couldn't reach ${base} to sign in (${e.message}).`);",
+    "replace": "      return {};",
+    "test": "npx vitest run scripts/backup.test.mjs"
+  },
+  {
+    "name": "the refusal doesn't say what was asked for",
+    "file": "scripts/backup.mjs",
+    "find": "    throw new Error(`Incorrect ${words}${reuse}.`);",
+    "replace": "    throw new Error('Incorrect password.');",
+    "test": "npx vitest run scripts/backup.test.mjs"
   }
 ]

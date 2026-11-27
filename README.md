@@ -133,8 +133,9 @@ Set these on the Vercel project (Production), then redeploy. Mark secrets *sensi
 
 ## Backups
 
-`npm run backup` signs in, downloads the whole cloud copy, saves it encrypted with gpg and signs
-that session out; the unencrypted data never touches the disk. Backups go to `~/ledger-backups/`
+`npm run backup` signs in the way the sign-in page does (email when the deploy asks for one, or
+`LEDGER_EMAIL`; password; a code when one is required), downloads the whole cloud copy, saves it
+encrypted with gpg and signs that session out; the unencrypted data never touches the disk. Backups go to `~/ledger-backups/`
 (`LEDGER_BACKUP_DIR` changes it; never inside this repository). Keep a second copy elsewhere.
 
 - **Encryption:** set `LEDGER_BACKUP_RECIPIENT` to a gpg key's email or id to encrypt to that key;

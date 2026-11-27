@@ -6,6 +6,9 @@
 //                                      wins; deletions stay deleted), e.g. after losing the data
 // Settings (environment variables):
 //   LEDGER_URL               the deploy (default https://mugabi-ledger.vercel.app)
+//   LEDGER_EMAIL             your sign-in email, when the deploy asks for one (Postgres); without
+//                            it the script asks. It signs in exactly as the deploy's sign-in page
+//                            does: email if asked, password, and a code unless switched off.
 //   LEDGER_BACKUP_DIR        where backups go (default ~/ledger-backups). Never inside this
 //                            repository: it is public.
 //   LEDGER_BACKUP_RECIPIENT  a gpg key (email or id) to encrypt to; then only that key's private
@@ -96,20 +99,35 @@ function prompter() {
   return { ask, close: () => rl.close() };
 }
 
-async function signIn(base, ask) {
-  const mfa = await fetch(`${base}/api/login`)
-    .then((r) => (r.ok ? r.json() : {}))
-    .then((b) => b.mfa === true)
-    .catch(() => false);
+/**
+ * Signs in the way this deploy asks (GET /api/login): on Postgres with an email as well (from
+ * LEDGER_EMAIL, or asked), and with a code unless the deploy has it switched off. Returns the
+ * session token.
+ */
+export async function signIn(base, ask, env = process.env) {
+  const options = await fetch(`${base}/api/login`)
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+    .catch((e) => {
+      throw new Error(`Couldn't reach ${base} to sign in (${e.message}).`);
+    });
+  const needsEmail = options.email === true;
+  const needsCode = options.mfa === true;
+  const email = needsEmail ? (env.LEDGER_EMAIL?.trim() || (await ask('Ledger email: '))) : '';
   const password = await ask('Ledger password: ', true);
-  const code = mfa ? await ask('Authenticator code: ') : '';
+  const code = needsCode ? await ask('Authenticator code: ') : '';
+  const body = { password };
+  if (needsEmail) body.email = email;
+  if (needsCode) body.code = code;
   const res = await fetch(`${base}/api/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(code ? { password, code } : { password }),
+    body: JSON.stringify(body),
   });
   if (res.status === 401) {
-    throw new Error(mfa ? 'Incorrect password or code (a code already used to sign in works once: wait for the next).' : 'Incorrect password.');
+    const what = [needsEmail && 'email', 'password', needsCode && 'code'].filter(Boolean);
+    const words = what.length === 1 ? what[0] : `${what.slice(0, -1).join(', ')} or ${what.at(-1)}`;
+    const reuse = needsCode ? ' (a code already used to sign in works once: wait for the next)' : '';
+    throw new Error(`Incorrect ${words}${reuse}.`);
   }
   if (res.status === 429) throw new Error('Too many sign-in attempts; try again in 15 minutes.');
   if (!res.ok) throw new Error(`Sign-in failed (HTTP ${res.status}).`);

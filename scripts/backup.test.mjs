@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { createServer } from 'node:http';
+import { afterEach, describe, expect, it } from 'vitest';
 import { ITEM_TYPES } from '../src/shared/itemTypes';
-import { backupName, DONE_STATUSES, encryptArgs, summarise, summaryLine } from './backup.mjs';
+import { backupName, DONE_STATUSES, encryptArgs, signIn, summarise, summaryLine } from './backup.mjs';
 
 const task = (id, status = 'todo') => ({ id, status });
 
@@ -76,5 +77,91 @@ describe('backup script', () => {
 
   it('names files by local date and time', () => {
     expect(backupName(new Date(2026, 10, 26, 9, 5))).toBe('ledger-2026-11-26T0905.json.gpg');
+  });
+});
+
+describe('signing in, the way the deploy asks', () => {
+  const servers = [];
+  afterEach(async () => {
+    await Promise.all(servers.splice(0).map((srv) => new Promise((resolve) => srv.close(resolve))));
+  });
+
+  /** A stand-in for /api/login: answers the options, accepts only `accept`, and records what was sent. */
+  async function deploy(options, accept, optionsStatus = 200) {
+    const posted = [];
+    const server = createServer((req, res) => {
+      if (req.method === 'GET') {
+        res.writeHead(optionsStatus, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(options));
+        return;
+      }
+      let raw = '';
+      req.on('data', (c) => (raw += c));
+      req.on('end', () => {
+        const body = JSON.parse(raw);
+        posted.push(body);
+        const ok = JSON.stringify(body) === JSON.stringify(accept);
+        res.writeHead(ok ? 200 : 401, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(ok ? { token: 'token-1' } : { error: 'incorrect' }));
+      });
+    });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    servers.push(server);
+    return { base: `http://127.0.0.1:${server.address().port}`, posted };
+  }
+
+  /** Answers prompts from `answers` by their question, recording what was asked. */
+  function asker(answers) {
+    const asked = [];
+    const ask = async (question) => {
+      asked.push(question);
+      return answers[question] ?? '';
+    };
+    return { ask, asked };
+  }
+
+  it('on Postgres asks for the email, password and code, and sends all three', async () => {
+    const d = await deploy({ mfa: true, email: true }, { password: 'pw', email: 'me@example.org', code: '123456' });
+    const { ask, asked } = asker({ 'Ledger email: ': 'me@example.org', 'Ledger password: ': 'pw', 'Authenticator code: ': '123456' });
+    expect(await signIn(d.base, ask, {})).toBe('token-1');
+    expect(asked).toEqual(['Ledger email: ', 'Ledger password: ', 'Authenticator code: ']);
+  });
+
+  it('takes the email from LEDGER_EMAIL, and sends no code while it is switched off', async () => {
+    const d = await deploy({ mfa: false, email: true }, { password: 'pw', email: 'me@example.org' });
+    const { ask, asked } = asker({ 'Ledger password: ': 'pw' });
+    expect(await signIn(d.base, ask, { LEDGER_EMAIL: ' me@example.org ' })).toBe('token-1');
+    expect(asked).toEqual(['Ledger password: ']);
+    expect(d.posted).toEqual([{ password: 'pw', email: 'me@example.org' }]);
+  });
+
+  it('on the old store sends no email', async () => {
+    const d = await deploy({ mfa: true, email: false }, { password: 'pw', code: '123456' });
+    const { ask, asked } = asker({ 'Ledger password: ': 'pw', 'Authenticator code: ': '123456' });
+    expect(await signIn(d.base, ask, { LEDGER_EMAIL: 'me@example.org' })).toBe('token-1');
+    expect(asked).toEqual(['Ledger password: ', 'Authenticator code: ']);
+    expect(d.posted).toEqual([{ password: 'pw', code: '123456' }]);
+  });
+
+  it('names exactly what was asked for when sign-in is refused', async () => {
+    const wrong = { 'Ledger email: ': 'me@example.org', 'Ledger password: ': 'nope', 'Authenticator code: ': '000000' };
+    const cases = [
+      [{ mfa: true, email: true }, 'Incorrect email, password or code (a code already used to sign in works once: wait for the next).'],
+      [{ mfa: false, email: true }, 'Incorrect email or password.'],
+      [{ mfa: true, email: false }, 'Incorrect password or code (a code already used to sign in works once: wait for the next).'],
+      [{ mfa: false, email: false }, 'Incorrect password.'],
+    ];
+    for (const [options, message] of cases) {
+      const d = await deploy(options, { password: 'right' });
+      await expect(signIn(d.base, asker(wrong).ask, {})).rejects.toThrow(message);
+    }
+  });
+
+  it("stops when the deploy's sign-in options can't be read, instead of guessing", async () => {
+    const d = await deploy({}, {}, 500);
+    const { ask, asked } = asker({});
+    await expect(signIn(d.base, ask, {})).rejects.toThrow(/Couldn't reach .* to sign in \(HTTP 500\)/);
+    expect(asked).toEqual([]);
+    expect(d.posted).toEqual([]);
   });
 });
