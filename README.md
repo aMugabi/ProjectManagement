@@ -2,7 +2,7 @@
 
 A personal work tracker for several streams of work at once. It opens on a cross-workspace view
 of what needs attention today, and lets you drill into one project, product or partner when you
-want to do focused work. Besides tasks it tracks risks, issues, decisions, milestones and change
+want to do focused work. Besides tasks it tracks risks, issues, decisions, dependencies and change
 requests; releases with their stage sign-offs; who you are waiting on; and it writes a weekly
 report.
 
@@ -15,8 +15,9 @@ Postgres.
   Inside a workspace, an item belongs to a plain **project**, a **product**, a **partner**, a
   product with a partner (a *pair*), or nothing. *Settings → Projects → Sort projects* turns
   existing projects into products and partners, with a dry run first.
-- **Item types:** task, risk, issue, decision, milestone and change request, each with its own
-  statuses and fields (a risk's likelihood and mitigation, a decision's outcome, and so on).
+- **Item types:** task, risk, issue, decision, dependency and change request, each with its own
+  statuses and fields (a risk's likelihood, impact and mitigation, a decision's rationale, who a
+  dependency waits on, and so on).
 - **Dashboard:** a *Focus* layout (today, this week, project health, blocked work) and a
   *Portfolio* layout, switchable from the header. Snoozed items stay off it until their date.
 - **All items:** a **List** grouped by where items belong, with inline editing, and a **Board**
