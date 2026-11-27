@@ -19,20 +19,34 @@ import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { pathToFileURL } from 'node:url';
 
+/**
+ * The statuses that mean finished, for every item type (a closed risk, a decided decision...).
+ * backup.test.mjs checks this list against src/shared/itemTypes.ts, which this plain script can't import.
+ */
+export const DONE_STATUSES = new Set(['done', 'closed', 'resolved', 'decided', 'superseded', 'met', 'rejected', 'implemented']);
+
+/** The lists a workspace holds, counted in a summary. */
+const LISTS = ['projects', 'tasks', 'products', 'partners', 'releases', 'signoffs'];
+const count = (list) => (Array.isArray(list) ? list.length : 0);
+
 /** What a backup holds, as counts per workspace: enough to check it without showing any content. */
 export function summarise(stored) {
   const s = stored?.state;
   if (!s || !Array.isArray(s.tasks) || !Array.isArray(s.projects)) throw new Error("That isn't a Ledger backup.");
-  const data = { ...(s.workspaceData ?? {}), [s.activeWorkspaceId]: { projects: s.projects, tasks: s.tasks } };
+  const data = { ...(s.workspaceData ?? {}), [s.activeWorkspaceId]: Object.fromEntries(LISTS.map((k) => [k, s[k]])) };
   const workspaces = (s.workspaces ?? []).map((w) => {
     // Own-property lookup: workspace ids come from names, and could be 'constructor'.
     const d = Object.hasOwn(data, w.id) ? data[w.id] : {};
     const tasks = Array.isArray(d.tasks) ? d.tasks : [];
     return {
       workspace: w.name,
-      projects: Array.isArray(d.projects) ? d.projects.length : 0,
+      projects: count(d.projects),
       tasks: tasks.length,
-      done: tasks.filter((t) => t.status === 'done').length,
+      done: tasks.filter((t) => DONE_STATUSES.has(t.status)).length,
+      products: count(d.products),
+      partners: count(d.partners),
+      releases: count(d.releases),
+      signoffs: count(d.signoffs),
     };
   });
   return { version: stored.version, workspaces, deletions: Object.keys(s.deleted ?? {}).length };
@@ -106,8 +120,21 @@ async function signOut(base, token) {
   await fetch(`${base}/api/login`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
 }
 
+/** One line per workspace; products, partners, releases and sign-offs only when there are some. */
+export function summaryLine(w) {
+  const more = [
+    [w.products, 'product'],
+    [w.partners, 'partner'],
+    [w.releases, 'release'],
+    [w.signoffs, 'sign-off'],
+  ]
+    .filter(([n]) => n > 0)
+    .map(([n, one]) => `${n} ${one}${n === 1 ? '' : 's'}`);
+  return `  ${w.workspace}: ${w.projects} projects, ${w.tasks} items (${w.done} done)${more.length ? `; ${more.join(', ')}` : ''}`;
+}
+
 function printSummary(summary) {
-  for (const w of summary.workspaces) console.log(`  ${w.workspace}: ${w.projects} projects, ${w.tasks} tasks (${w.done} done)`);
+  for (const w of summary.workspaces) console.log(summaryLine(w));
   console.log(`  ${summary.deletions} remembered deletions; data version ${summary.version}`);
 }
 

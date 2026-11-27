@@ -1,0 +1,37 @@
+[
+  {
+    "name": "a finished status missing (closed risks counted as open)",
+    "file": "scripts/backup.mjs",
+    "find": "'done', 'closed', ",
+    "replace": "'done', ",
+    "test": "npx vitest run scripts/backup.test.mjs"
+  },
+  {
+    "name": "only 'done' counts as finished",
+    "file": "scripts/backup.mjs",
+    "find": "DONE_STATUSES.has(t.status)",
+    "replace": "t.status === 'done'",
+    "test": "npx vitest run scripts/backup.test.mjs"
+  },
+  {
+    "name": "the active workspace's products and partners left out",
+    "file": "scripts/backup.mjs",
+    "find": "Object.fromEntries(LISTS.map((k) => [k, s[k]]))",
+    "replace": "{ projects: s.projects, tasks: s.tasks }",
+    "test": "npx vitest run scripts/backup.test.mjs"
+  },
+  {
+    "name": "sign-offs not counted",
+    "file": "scripts/backup.mjs",
+    "find": "signoffs: count(d.signoffs),",
+    "replace": "signoffs: 0,",
+    "test": "npx vitest run scripts/backup.test.mjs"
+  },
+  {
+    "name": "empty lists printed too",
+    "file": "scripts/backup.mjs",
+    "find": ".filter(([n]) => n > 0)",
+    "replace": "",
+    "test": "npx vitest run scripts/backup.test.mjs"
+  }
+]
