@@ -109,6 +109,13 @@ describe.skipIf(!OWNER_URL || !APP_URL)('the API on Postgres (TEST_DB_OWNER_URL,
     return r.body.token;
   }
 
+  it('says it is healthy on Postgres: the app role answers and sees no workspace without a user', async () => {
+    const { GET } = await import('./health');
+    const res = await GET();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, store: 'postgres', database: 'ok' });
+  });
+
   it('asks for an email and a code', async () => {
     expect((await call(login, 'GET')).body).toEqual({ mfa: true, email: true });
   });

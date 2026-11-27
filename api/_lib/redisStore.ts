@@ -25,6 +25,11 @@ function loginLimiters() {
 
 export type SignInResult = { token: string } | 'incorrect' | 'rate-limited' | 'not-configured';
 
+/** Redis's answer to PING ('PONG' when it is reachable with these credentials). */
+export async function ping(): Promise<string> {
+  return kv.ping();
+}
+
 /** One user: the password, then (with MFA on) an authenticator or recovery code. */
 export async function signIn(input: { password: unknown; code: unknown; ip: string }): Promise<SignInResult> {
   const stored = process.env.AUTH_PASSWORD_HASH;

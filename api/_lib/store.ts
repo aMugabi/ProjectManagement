@@ -28,6 +28,33 @@ export function subscriptionId(endpoint: string): string {
   return createHash('sha256').update(endpoint).digest('hex');
 }
 
+// ---- Health -----------------------------------------------------------------------------------
+
+export interface StoreHealth {
+  store: 'postgres' | 'redis';
+  ok: boolean;
+}
+
+/**
+ * Whether the store answers, reading no one's data. On Postgres the app's own role asks which
+ * workspaces it can see with no user signed in: that proves the connection, the login, the
+ * migrations (the app schema) and the workspace walls, and the answer must be none.
+ */
+export async function storeHealth(): Promise<StoreHealth> {
+  const store = onPostgres() ? 'postgres' : 'redis';
+  try {
+    if (store === 'postgres') {
+      const r = await appPool().query<{ n: number }>('select cardinality(app.workspace_ids()) as n');
+      if (r.rows[0]?.n !== 0) throw new Error(`with no user the app role sees ${r.rows[0]?.n} workspaces`);
+    } else if ((await redis.ping()) !== 'PONG') throw new Error('Redis did not answer PONG');
+    return { store, ok: true };
+  } catch (e) {
+    // Logged here, never sent: driver errors can name hosts and roles.
+    console.error('Health check: the store failed:', (e as Error).message);
+    return { store, ok: false };
+  }
+}
+
 // ---- Sign-in ----------------------------------------------------------------------------------
 
 /** What the sign-in form must ask for. On Postgres: an email, and always a code (MFA is required). */

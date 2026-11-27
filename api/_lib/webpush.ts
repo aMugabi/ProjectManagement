@@ -24,6 +24,19 @@ export function vapidPublicKey(): string | null {
   return process.env.VAPID_PUBLIC_KEY ? urlSafeKey(process.env.VAPID_PUBLIC_KEY) : null;
 }
 
+/**
+ * Whether the push keys are usable: 'missing' when not set, 'invalid' when web-push refuses them
+ * (a private key that isn't 32 bytes once decoded, say), else 'ok'. Checked without sending.
+ */
+export function pushKeys(): 'ok' | 'missing' | 'invalid' {
+  try {
+    return configured() ? 'ok' : 'missing';
+  } catch (e) {
+    console.error('Health check: the push keys are unusable:', (e as Error).message);
+    return 'invalid';
+  }
+}
+
 function configured(): boolean {
   const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT } = process.env;
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return false;

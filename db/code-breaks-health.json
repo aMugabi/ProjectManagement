@@ -1,0 +1,65 @@
+[
+  {
+    "name": "workspaces visible with no user still counts as healthy",
+    "file": "api/_lib/store.ts",
+    "find": "      if (r.rows[0]?.n !== 0) throw new Error(`with no user the app role sees ${r.rows[0]?.n} workspaces`);\n",
+    "replace": "",
+    "test": "npx vitest run api/health.test.ts"
+  },
+  {
+    "name": "any Redis answer counts as healthy",
+    "file": "api/_lib/store.ts",
+    "find": "(await redis.ping()) !== 'PONG'",
+    "replace": "(await redis.ping()) === undefined",
+    "test": "npx vitest run api/health.test.ts"
+  },
+  {
+    "name": "a failing store still answers healthy",
+    "file": "api/_lib/store.ts",
+    "find": "    return { store, ok: false };",
+    "replace": "    return { store, ok: true };",
+    "test": "npx vitest run api/health.test.ts"
+  },
+  {
+    "name": "unusable push keys count as fine",
+    "file": "api/_lib/webpush.ts",
+    "find": "    return 'invalid';",
+    "replace": "    return 'ok';",
+    "test": "npx vitest run api/health.test.ts"
+  },
+  {
+    "name": "unusable push keys don't fail the check",
+    "file": "api/health.ts",
+    "find": "const ok = store.ok && push !== 'invalid';",
+    "replace": "const ok = store.ok;",
+    "test": "npx vitest run api/health.test.ts"
+  },
+  {
+    "name": "push keys not set up fail the check",
+    "file": "api/health.ts",
+    "find": "const ok = store.ok && push !== 'invalid';",
+    "replace": "const ok = store.ok && push === 'ok';",
+    "test": "npx vitest run api/health.test.ts"
+  },
+  {
+    "name": "always answers 200",
+    "file": "api/health.ts",
+    "find": "status: ok ? 200 : 503",
+    "replace": "status: 200",
+    "test": "npx vitest run api/health.test.ts"
+  },
+  {
+    "name": "answers may be cached",
+    "file": "api/health.ts",
+    "find": "headers: { 'Cache-Control': 'no-store' }",
+    "replace": "headers: {}",
+    "test": "npx vitest run api/health.test.ts"
+  },
+  {
+    "name": "the store's error is sent to the caller",
+    "file": "api/health.ts",
+    "find": "database: store.ok ? 'ok' : 'failing'",
+    "replace": "database: store.ok ? 'ok' : String((globalThis as { lastError?: unknown }).lastError ?? 'failing'), detail: (await import('./_lib/store.js')).onPostgres() ? 'ledger_app_login neon password' : 'db-host admin ECONNREFUSED'",
+    "test": "npx vitest run api/health.test.ts"
+  }
+]

@@ -56,8 +56,8 @@ Each run uses its own users, so runs can share one served database. `db/code-bre
 converter), `db/code-breaks-db.json` (reading, writing, the import), `db/code-breaks-step2.json`
 (the Step 2 fields end to end), `db/code-breaks-step3.json` (releases and sign-offs),
 `db/code-breaks-step4.json` (finish dates, in the app too), `db/code-breaks-push.json` (push
-reminders: key forms and retries) and `db/code-breaks-backup.json` (the backup's counts) break the
-code on purpose;
+reminders: key forms and retries), `db/code-breaks-backup.json` (the backup's counts) and
+`db/code-breaks-health.json` (`/api/health`) break the code on purpose;
 run them with the skill's `break-code.py` (the second inside the namespace above). Left out as
 shadowed: sync stripping `legacy_*` keys from uploads (each type's schema already refuses unknown
 fields).
