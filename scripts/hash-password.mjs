@@ -2,7 +2,9 @@
 // Prints the AUTH_PASSWORD_HASH value for a password: `scrypt$<salt hex>$<key hex>`.
 // Must match api/_lib/password.ts (N=16384, r=8, p=1, 64-byte key).
 // Usage: npm run hash-password   (prompts without echoing the password)
+//        npm run hash-password -- --save ~/.ledger-cutover   (saves it to a private file instead)
 import { randomBytes, scryptSync } from 'node:crypto';
+import { saveDir, saveValues } from './save-values.mjs';
 import { createInterface } from 'node:readline';
 import { pathToFileURL } from 'node:url';
 
@@ -12,6 +14,7 @@ export function hashPassword(password, salt = randomBytes(16)) {
 }
 
 async function main() {
+  const dir = saveDir();
   const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: process.stdin.isTTY });
   let prompt = '';
   // Echo only the prompt, never the typed characters.
@@ -32,7 +35,11 @@ async function main() {
   rl.close();
   if (!password) throw new Error('No password given.');
   if (repeat !== password) throw new Error("Passwords don't match.");
-  console.log(`\nAUTH_PASSWORD_HASH=${hashPassword(password)}`);
+  const hash = hashPassword(password);
+  if (dir) {
+    saveValues(dir, { AUTH_PASSWORD_HASH: hash });
+    console.log(`\nSaved AUTH_PASSWORD_HASH in ${dir} (readable only by you).`);
+  } else console.log(`\nAUTH_PASSWORD_HASH=${hash}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

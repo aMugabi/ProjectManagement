@@ -5,6 +5,8 @@
 //      Authenticator, 1Password, ...), and the same setup key as text for "Enter a setup key".
 //   2. Asks for the code the app now shows, to prove the app and Ledger agree.
 //   3. Prints the two environment variables for the Vercel project, and 10 one-time recovery codes.
+//      With `-- --save DIR` the two variables go to private files in DIR instead (never inside this
+//      repository); the recovery codes are still shown, once, for you to keep.
 // Nothing is sent anywhere and nothing is saved: the output exists only in this terminal (the QR
 // code is drawn here, by the uqr package, with no network). Run it in your own terminal, not
 // through a chat or anything that records its output.
@@ -13,6 +15,7 @@ import { createHash, createHmac, randomBytes, randomInt } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import { pathToFileURL } from 'node:url';
 import { encode } from 'uqr';
+import { saveDir, saveValues } from './save-values.mjs';
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
@@ -102,6 +105,7 @@ export function hashRecoveryCode(code) {
 }
 
 async function main() {
+  const dir = saveDir(); // checked first, so a bad --save fails before anything is scanned
   const secret = generateSecret();
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const ask = (question) => new Promise((resolve) => rl.question(question, resolve));
@@ -126,9 +130,15 @@ async function main() {
   if (!confirmed) throw new Error('Not confirmed; nothing to set. Run `npm run setup-mfa` again.');
 
   const recovery = generateRecoveryCodes();
-  console.log('\nConfirmed. Add these to the Vercel project (Settings → Environment Variables, Production), then redeploy:\n');
-  console.log(`AUTH_TOTP_SECRET=${secret}`);
-  console.log(`AUTH_RECOVERY_CODES=${recovery.map(hashRecoveryCode).join(',')}\n`);
+  const values = { AUTH_TOTP_SECRET: secret, AUTH_RECOVERY_CODES: recovery.map(hashRecoveryCode).join(',') };
+  if (dir) {
+    saveValues(dir, values);
+    console.log(`\nConfirmed. Saved AUTH_TOTP_SECRET and AUTH_RECOVERY_CODES in ${dir} (readable only by you).\n`);
+  } else {
+    console.log('\nConfirmed. Add these to the Vercel project (Settings → Environment Variables, Production), then redeploy:\n');
+    for (const [name, value] of Object.entries(values)) console.log(`${name}=${value}`);
+    console.log('');
+  }
   console.log('Recovery codes: each signs you in once if you lose the phone. Keep them in your password');
   console.log('manager or on paper, not in this repository. They are not shown again.\n');
   for (const code of recovery) console.log(`  ${code}`);
