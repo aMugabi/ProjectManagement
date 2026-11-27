@@ -30,6 +30,11 @@ the old Upstash Redis store otherwise.
 - **Account tables** (users, identities, sessions, MFA) have no policies: sign-in reads them before
   anyone is signed in, and only the sign-in module touches them.
 
+Two columns that look meaningful but aren't read: `users.time_zone` (each user's zone is the one in
+their reminder settings, `user_settings.reminders`, which the app edits and syncs) and the plan's
+idea of a separate severity column (a risk's likelihood and impact live in `items.details`, like
+every type's own fields; give one a column only when a report needs to filter on it).
+
 ## Running the tests (offline, in a throwaway container)
 Uses the `offline-database-tests` skill's scripts and a local image with Postgres 17 and pgTAP
 (nothing is pulled; no network):

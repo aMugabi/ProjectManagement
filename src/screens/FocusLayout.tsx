@@ -97,7 +97,7 @@ export function FocusLayout() {
 
       <div className={s.colRight}>
         <div className={s.card}>
-          <h2 className={s.panelHeading}>Project health</h2>
+          <h2 className={s.panelHeading}>Health</h2>
           <div style={{ marginTop: 15 }}>
             {groups.flatMap(([kind, list]) => list.map((p) => {
               const stat = projectStats(tasks, p, kind);

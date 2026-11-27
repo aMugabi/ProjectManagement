@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { emptySnapshot } from '../shared/state';
 import type { Task } from '../types';
-import { convertProject, homeValue, withCompletion, withDate, withOccurrenceDone, withWaiting, sortProjects, sortSummary, uniqueId, parseHome, withDetail, withHome, withoutGroup, withType } from './items';
+import { convertProject, homeValue, newItemId, withCompletion, withDate, withOccurrenceDone, withWaiting, sortProjects, sortSummary, uniqueId, parseHome, withDetail, withHome, withoutGroup, withType } from './items';
 
 const item = (extra: Partial<Task> = {}): Task => ({
   id: 'i', project: '', title: 'T', status: 'todo', priority: 'med', dueDate: '2026-12-01', subs: [], recurring: null, deps: [],
@@ -229,5 +229,26 @@ describe('withCompletion and withOccurrenceDone (Step 4)', () => {
     const many = withOccurrenceDone({ ...t, completions: Array.from({ length: 100 }, (_, i) => `2020-01-${String((i % 28) + 1).padStart(2, '0')}`) }, '2026-11-27');
     expect(many.completions).toHaveLength(100);
     expect(many.completions!.at(-1)).toBe('2026-11-27');
+  });
+});
+
+describe('newItemId', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('is a random UUID made on the device, never the same twice', () => {
+    const ids = Array.from({ length: 1000 }, newItemId);
+    expect(new Set(ids).size).toBe(1000);
+    for (const id of ids.slice(0, 5)) expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+
+  it('falls back to time plus random where randomUUID is missing, still unique within a millisecond', () => {
+    vi.stubGlobal('crypto', {});
+    vi.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000);
+    const ids = Array.from({ length: 1000 }, newItemId);
+    expect(new Set(ids).size).toBe(1000);
+    expect(ids[0]).toMatch(/^t[0-9a-z]+-[0-9a-z]+$/);
+    vi.restoreAllMocks();
   });
 });

@@ -172,6 +172,17 @@ export function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'item';
 }
 
+/**
+ * A new item's id: random, made on the device, so items created offline or on two devices at the
+ * same moment never share one (ids made from the time could, and sync would then merge them into
+ * one item). Pages that aren't a secure context have no randomUUID: time plus random there.
+ */
+export function newItemId(): string {
+  const c = globalThis.crypto;
+  if (typeof c?.randomUUID === 'function') return c.randomUUID();
+  return `t${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 /** A slug id unique in `taken`, from a name ('Mobile loans' → 'mobile-loans', then 'mobile-loans-2'). */
 export function uniqueId(name: string, taken: Iterable<string>): string {
   const ids = new Set(taken);

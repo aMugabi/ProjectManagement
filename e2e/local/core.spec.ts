@@ -19,6 +19,7 @@ test.describe('local-only build: core task tracking', () => {
     await page.getByPlaceholder('Project name').press('Enter');
 
     await page.goto('tasks');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible(); // the app is listening for "n"
     await page.keyboard.press('n');
     await page.getByPlaceholder('What needs doing?').fill('Plant tulips');
     await page.getByRole('button', { name: 'Add task' }).click();

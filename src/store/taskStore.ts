@@ -8,7 +8,7 @@ import { CLOUD_ENABLED } from '../lib/cloud';
 import { createCloudStorage, onRemoteState } from '../lib/cloudStorage';
 import { STORE_KEY } from '../lib/deviceData';
 import { wouldCreateCycle } from '../lib/selectors';
-import { parseHome, sortProjects, uniqueId, withCompletion, withDate, withDetail, withOccurrenceDone, withWaiting, withHome, withoutGroup, withType, type HomeValue, type ProjectTarget } from '../lib/items';
+import { newItemId, parseHome, sortProjects, uniqueId, withCompletion, withDate, withDetail, withOccurrenceDone, withWaiting, withHome, withoutGroup, withType, type HomeValue, type ProjectTarget } from '../lib/items';
 import { completeStatus, firstStatus, isDone, statusForPhase, typeOf, type Phase } from '../shared/itemTypes';
 import * as rel from '../lib/releases';
 
@@ -360,7 +360,7 @@ export const useTaskStore = create<TaskStore>()(
         set((s) => {
           const now = Date.now();
           const blank: Task = {
-            id: `t${now}`,
+            id: newItemId(),
             project: project ?? '',
             title,
             status: firstStatus(type),

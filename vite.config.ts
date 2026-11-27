@@ -46,29 +46,13 @@ export default defineConfig({
         clientsClaim: true,
         // Notification click (and, on cloud builds, push) handlers live in public/push-sw.js.
         importScripts: ['push-sw.js'],
-        globPatterns: ['**/*.{js,css,html,svg,png}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         // Only GitHub Pages' deep-link redirect shim; never useful offline.
         globIgnores: ['404.html'],
         // Serve the app shell for client-side routes (/tasks, /timeline, …) — but
         // never for the sync API, which must always reach the network.
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api\//],
-        runtimeCaching: [
-          {
-            urlPattern: ({ url }) => url.origin === 'https://fonts.googleapis.com',
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'google-fonts-stylesheets' },
-          },
-          {
-            urlPattern: ({ url }) => url.origin === 'https://fonts.gstatic.com',
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-webfonts',
-              cacheableResponse: { statuses: [0, 200] },
-              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            },
-          },
-        ],
       },
     }),
   ],
