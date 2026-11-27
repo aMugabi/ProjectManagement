@@ -1,6 +1,7 @@
 /**
  * Sign-in on Postgres (build plan Step 1a): email and password, then an authenticator or recovery
- * code, which every user must have here (no factor, no sign-in: MFA can't quietly lapse).
+ * code, which every user must have here (no factor, no sign-in: MFA can't quietly lapse). The
+ * owner can switch the code off for everyone with AUTH_MFA=off (see mfa.ts); the keys stay stored.
  * Sessions are random tokens stored only as SHA-256, lasting 30 days from last use. Login
  * attempts are limited as before: 5 per 15 minutes per IP address, 50 an hour overall.
  * These tables have no row-level security (sign-in reads them before anyone is signed in), so
@@ -90,7 +91,11 @@ export async function secondFactorOk(db: Queryable, userId: string, code: unknow
  * The user for this email, password and code, or null. A wrong email, password or code all get
  * the same answer, after the same password work.
  */
-export async function signIn(db: Queryable, input: { email: unknown; password: unknown; code: unknown }): Promise<string | null> {
+export async function signIn(
+  db: Queryable,
+  input: { email: unknown; password: unknown; code: unknown },
+  secondFactor = true,
+): Promise<string | null> {
   const email = typeof input.email === 'string' ? input.email.trim().toLowerCase() : '';
   const password = typeof input.password === 'string' ? input.password : '';
   const r = await db.query<{ user_id: string; secret_hash: string | null }>(
@@ -100,5 +105,9 @@ export async function signIn(db: Queryable, input: { email: unknown; password: u
   const identity = r.rows[0];
   const passwordOk = verifyPassword(password, identity?.secret_hash ?? NO_SUCH_HASH);
   if (!identity || !password || !passwordOk) return null;
+  if (!secondFactor) {
+    console.warn('Signed in with a password only: the second factor is switched off (AUTH_MFA=off).');
+    return identity.user_id;
+  }
   return (await secondFactorOk(db, identity.user_id, input.code)) ? identity.user_id : null;
 }

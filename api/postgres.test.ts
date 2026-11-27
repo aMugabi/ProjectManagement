@@ -116,6 +116,25 @@ describe.skipIf(!OWNER_URL || !APP_URL)('the API on Postgres (TEST_DB_OWNER_URL,
     expect(await res.json()).toMatchObject({ ok: true, store: 'postgres', database: 'ok' });
   });
 
+  it('signs in with email and password alone while the code is switched off, and asks again once it is back on', async () => {
+    await forgetOverallAttempts();
+    process.env.AUTH_MFA = 'off';
+    try {
+      expect((await call(login, 'GET')).body).toEqual({ mfa: false, email: true });
+      const ok = await call(login, 'POST', { body: { email: users.b.email, password: PASSWORD } });
+      expect(ok.status).toBe(200);
+      expect((await call(state, 'GET', { token: ok.body.token })).status).toBe(200);
+      expect(await call(login, 'POST', { body: { email: users.b.email, password: 'wrong' } })).toEqual({
+        status: 401,
+        body: { error: 'incorrect email or password' },
+      });
+    } finally {
+      delete process.env.AUTH_MFA;
+    }
+    expect((await call(login, 'GET')).body).toEqual({ mfa: true, email: true });
+    expect((await call(login, 'POST', { body: { email: users.b.email, password: PASSWORD } })).status).toBe(401);
+  });
+
   it('asks for an email and a code', async () => {
     expect((await call(login, 'GET')).body).toEqual({ mfa: true, email: true });
   });

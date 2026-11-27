@@ -57,7 +57,8 @@ converter), `db/code-breaks-db.json` (reading, writing, the import), `db/code-br
 (the Step 2 fields end to end), `db/code-breaks-step3.json` (releases and sign-offs),
 `db/code-breaks-step4.json` (finish dates, in the app too), `db/code-breaks-push.json` (push
 reminders: key forms and retries), `db/code-breaks-backup.json` (the backup's counts) and
-`db/code-breaks-health.json` (`/api/health`) break the code on purpose;
+`db/code-breaks-health.json` (`/api/health`) and `db/code-breaks-mfa-switch.json` (`AUTH_MFA=off`; run
+inside the namespace, as some of its tests need the database) break the code on purpose;
 run them with the skill's `break-code.py` (the second inside the namespace above). Left out as
 shadowed: sync stripping `legacy_*` keys from uploads (each type's schema already refuses unknown
 fields).

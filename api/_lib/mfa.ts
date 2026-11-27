@@ -9,7 +9,16 @@ import { hashRecoveryCode, verifyTotp } from './totp.js';
  * live in the deployment's environment variables, like AUTH_PASSWORD_HASH.
  */
 export function mfaConfigured(): boolean {
-  return Boolean(process.env.AUTH_TOTP_SECRET);
+  return !mfaSwitchedOff() && Boolean(process.env.AUTH_TOTP_SECRET);
+}
+
+/**
+ * AUTH_MFA=off (exactly) turns the second factor off on every store: the owner's choice, made on
+ * 27 Nov 2026. The authenticator keys and recovery codes stay stored, so removing the setting and
+ * redeploying turns it back on with the same codes. /api/health reports it.
+ */
+export function mfaSwitchedOff(): boolean {
+  return process.env.AUTH_MFA === 'off';
 }
 
 /** Long enough to outlive the ±1 step window (90 s) a code is accepted in. */

@@ -35,7 +35,7 @@ describe('GET /api/health', () => {
     expect(await check()).toEqual({
       status: 200,
       cache: 'no-store',
-      body: { ok: true, store: 'redis', database: 'ok', push: 'ok', email: 'off' },
+      body: { ok: true, store: 'redis', database: 'ok', push: 'ok', email: 'off', mfa: 'on' },
     });
   });
 
@@ -69,6 +69,15 @@ describe('GET /api/health', () => {
   it('reports push keys that are not set up, without failing', async () => {
     delete process.env.VAPID_PRIVATE_KEY;
     expect((await check()).body).toMatchObject({ ok: true, push: 'missing' });
+  });
+
+  it('reports a sign-in code that is switched off, without failing', async () => {
+    process.env.AUTH_MFA = 'off';
+    try {
+      expect((await check()).body).toMatchObject({ ok: true, mfa: 'off' });
+    } finally {
+      delete process.env.AUTH_MFA;
+    }
   });
 
   it('accepts push keys saved in the padded base64 form', async () => {

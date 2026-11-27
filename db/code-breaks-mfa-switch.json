@@ -1,0 +1,65 @@
+[
+  {
+    "name": "the switch never turns the code off",
+    "file": "api/_lib/mfa.ts",
+    "find": "return process.env.AUTH_MFA === 'off';",
+    "replace": "return false;",
+    "test": "npx vitest run api/login.test.ts"
+  },
+  {
+    "name": "any value of AUTH_MFA turns the code off",
+    "file": "api/_lib/mfa.ts",
+    "find": "return process.env.AUTH_MFA === 'off';",
+    "replace": "return process.env.AUTH_MFA !== undefined;",
+    "test": "npx vitest run api/login.test.ts"
+  },
+  {
+    "name": "the old store ignores the switch",
+    "file": "api/_lib/mfa.ts",
+    "find": "return !mfaSwitchedOff() && Boolean(process.env.AUTH_TOTP_SECRET);",
+    "replace": "return Boolean(process.env.AUTH_TOTP_SECRET);",
+    "test": "npx vitest run api/login.test.ts"
+  },
+  {
+    "name": "Postgres sign-in ignores the switch",
+    "file": "api/_lib/store.ts",
+    "find": "code: input.code }, !mfaSwitchedOff());",
+    "replace": "code: input.code }, true);",
+    "test": "npx vitest run api/postgres.test.ts"
+  },
+  {
+    "name": "Postgres sign-in skips the code even with the switch on",
+    "file": "api/_lib/auth/pgAuth.ts",
+    "find": "  if (!secondFactor) {",
+    "replace": "  if (!secondFactor || true) {",
+    "test": "npx vitest run api/postgres.test.ts"
+  },
+  {
+    "name": "the sign-in form is still told to ask for a code",
+    "file": "api/_lib/store.ts",
+    "find": "{ mfa: !mfaSwitchedOff(), email: true }",
+    "replace": "{ mfa: true, email: true }",
+    "test": "npx vitest run api/postgres.test.ts"
+  },
+  {
+    "name": "the wrong-password message still mentions a code",
+    "file": "api/login.ts",
+    "find": "options.mfa ? 'incorrect email, password or code' : 'incorrect email or password'",
+    "replace": "'incorrect email, password or code'",
+    "test": "npx vitest run api/postgres.test.ts"
+  },
+  {
+    "name": "the health check doesn't say the code is off",
+    "file": "api/health.ts",
+    "find": "mfa: mfaSwitchedOff() ? 'off' : 'on'",
+    "replace": "mfa: 'on'",
+    "test": "npx vitest run api/health.test.ts"
+  },
+  {
+    "name": "the form's wrong-password message still mentions a code",
+    "file": "src/components/LoginGate.tsx",
+    "find": "askCode ? 'Incorrect email, password or code' : 'Incorrect email or password'",
+    "replace": "'Incorrect email, password or code'",
+    "test": "npx playwright test e2e/cloud/auth.spec.ts --project=cloud-chromium --reporter=dot"
+  }
+]

@@ -36,7 +36,9 @@ export default async function handler(req: any, res: any) {
       res.status(429).json({ error: 'too many attempts' });
     } else if (result === 'incorrect') {
       const options = loginOptions();
-      const error = options.email ? 'incorrect email, password or code' : options.mfa ? 'incorrect password or code' : 'incorrect password';
+      const error = options.email
+        ? options.mfa ? 'incorrect email, password or code' : 'incorrect email or password'
+        : options.mfa ? 'incorrect password or code' : 'incorrect password';
       res.status(401).json({ error });
     } else {
       res.status(200).json({ token: result.token });

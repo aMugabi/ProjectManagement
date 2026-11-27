@@ -40,8 +40,10 @@ export class FakeCloud {
   emailError: string | null = null;
   /** Sign-in needs MFA_CODE as well as the password. */
   mfa = false;
-  /** Sign-in by email (Postgres mode): needs EMAIL too, and always a code. */
+  /** Sign-in by email (Postgres mode): needs EMAIL too, and a code unless `mfaOff`. */
   emailLogin = false;
+  /** AUTH_MFA=off on the server: no code is asked for or checked. */
+  mfaOff = false;
   loginBodies: { email?: string; password?: string; code?: string }[] = [];
 
   async install(context: BrowserContext) {
@@ -63,13 +65,13 @@ export class FakeCloud {
     const token = (req.headers()['authorization'] ?? '').replace(/^Bearer /, '');
     const authed = this.sessions.has(token);
 
-    if (url.pathname === '/api/login' && method === 'GET') return this.json(route, 200, { mfa: this.mfa || this.emailLogin, email: this.emailLogin });
+    if (url.pathname === '/api/login' && method === 'GET') return this.json(route, 200, { mfa: !this.mfaOff && (this.mfa || this.emailLogin), email: this.emailLogin });
     if (url.pathname === '/api/login' && method === 'POST') {
       this.loginBodies.push(body);
       if (++this.loginAttempts > 5) return this.json(route, 429, { error: 'too many attempts' });
-      const needsCode = this.mfa || this.emailLogin;
+      const needsCode = !this.mfaOff && (this.mfa || this.emailLogin);
       if (body?.password !== PASSWORD || (needsCode && body?.code !== MFA_CODE) || (this.emailLogin && body?.email !== EMAIL)) {
-        return this.json(route, 401, { error: this.emailLogin ? 'incorrect email, password or code' : this.mfa ? 'incorrect password or code' : 'incorrect password' });
+        return this.json(route, 401, { error: this.emailLogin ? (needsCode ? 'incorrect email, password or code' : 'incorrect email or password') : needsCode ? 'incorrect password or code' : 'incorrect password' });
       }
       const fresh = `session-${this.sessions.size + 1}`;
       this.sessions.add(fresh);

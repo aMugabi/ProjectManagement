@@ -48,7 +48,9 @@ export function LoginGate({ children }: { children: ReactNode }) {
       // now that we have one, pull and merge the latest cloud copy.
       void useTaskStore.persist.rehydrate();
     } else {
-      const incorrect = askEmail ? 'Incorrect email, password or code' : askCode ? 'Incorrect password or code' : ERRORS.incorrect;
+      const incorrect = askEmail
+        ? askCode ? 'Incorrect email, password or code' : 'Incorrect email or password'
+        : askCode ? 'Incorrect password or code' : ERRORS.incorrect;
       setError(result === 'incorrect' ? incorrect : ERRORS[result]);
       if (result === 'incorrect') {
         setPassword('');

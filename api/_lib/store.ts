@@ -14,7 +14,7 @@ import { appPool, databaseConfigured, withUser } from './db/client.js';
 import { rowsToDocument } from './db/mapping.js';
 import { readRows } from './db/rows.js';
 import { syncDocument as pgSync } from './db/sync.js';
-import { mfaConfigured } from './mfa.js';
+import { mfaConfigured, mfaSwitchedOff } from './mfa.js';
 import * as redis from './redisStore.js';
 import { bearerToken, revokeAllSessions, revokeSession, sessionValid } from './session.js';
 
@@ -57,9 +57,9 @@ export async function storeHealth(): Promise<StoreHealth> {
 
 // ---- Sign-in ----------------------------------------------------------------------------------
 
-/** What the sign-in form must ask for. On Postgres: an email, and always a code (MFA is required). */
+/** What the sign-in form must ask for. On Postgres: an email, and a code unless AUTH_MFA=off. */
 export function loginOptions(): { mfa: boolean; email: boolean } {
-  return onPostgres() ? { mfa: true, email: true } : { mfa: mfaConfigured(), email: false };
+  return onPostgres() ? { mfa: !mfaSwitchedOff(), email: true } : { mfa: mfaConfigured(), email: false };
 }
 
 export type SignInResult = redis.SignInResult;
@@ -68,7 +68,7 @@ export async function signIn(input: { email?: unknown; password: unknown; code: 
   if (!onPostgres()) return redis.signIn(input);
   const db = appPool();
   if (!(await pgAuth.loginAllowed(db, input.ip))) return 'rate-limited';
-  const userId = await pgAuth.signIn(db, { email: input.email, password: input.password, code: input.code });
+  const userId = await pgAuth.signIn(db, { email: input.email, password: input.password, code: input.code }, !mfaSwitchedOff());
   return userId ? { token: await pgAuth.createSession(db, userId) } : 'incorrect';
 }
 

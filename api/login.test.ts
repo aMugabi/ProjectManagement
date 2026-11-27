@@ -65,6 +65,7 @@ beforeEach(() => {
   process.env.AUTH_PASSWORD_HASH = hashPassword(PASSWORD);
   delete process.env.AUTH_TOTP_SECRET;
   delete process.env.AUTH_RECOVERY_CODES;
+  delete process.env.AUTH_MFA;
 });
 
 function turnOnMfa() {
@@ -112,5 +113,32 @@ describe('/api/login with MFA', () => {
     expect((await call('POST', { password: PASSWORD, code: first })).status).toBe(401);
     expect((await call('POST', { password: PASSWORD, code: second.replace(/-/g, ' ') })).status).toBe(200);
     expect((await call('POST', { password: PASSWORD, code: 'aaaa-bbbb-cc' })).status).toBe(401);
+  });
+});
+
+describe('/api/login with MFA set up but switched off (AUTH_MFA=off)', () => {
+  beforeEach(turnOnMfa);
+
+  it('says no code is needed, and signs in with the password alone', async () => {
+    process.env.AUTH_MFA = 'off';
+    expect((await call('GET')).body).toEqual({ mfa: false, email: false });
+    expect((await call('POST', { password: PASSWORD })).body.token).toMatch(/^token-/);
+    expect(await call('POST', { password: 'wrong' })).toEqual({ status: 401, body: { error: 'incorrect password' } });
+  });
+
+  it('only the exact word "off" switches it off', async () => {
+    for (const value of ['OFF', 'false', '0', 'no', '']) {
+      process.env.AUTH_MFA = value;
+      expect((await call('GET')).body).toEqual({ mfa: true, email: false });
+      expect((await call('POST', { password: PASSWORD })).status).toBe(401);
+    }
+  });
+
+  it('asks for the code again once the setting is removed, with the same key', async () => {
+    process.env.AUTH_MFA = 'off';
+    expect((await call('POST', { password: PASSWORD })).status).toBe(200);
+    delete process.env.AUTH_MFA;
+    expect((await call('POST', { password: PASSWORD })).status).toBe(401);
+    expect((await call('POST', { password: PASSWORD, code: totpAt(SECRET, Date.now()) })).status).toBe(200);
   });
 });

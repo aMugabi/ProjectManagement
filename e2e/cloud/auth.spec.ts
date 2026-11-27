@@ -80,6 +80,24 @@ test.describe('cloud build: sign-in and sessions', () => {
     expect(cloud.loginBodies.at(-1)).toEqual({ email: EMAIL, password: PASSWORD, code: MFA_CODE });
   });
 
+  test('signing in by email with the code switched off (AUTH_MFA=off) asks for email and password only', async ({ page }) => {
+    cloud.emailLogin = true;
+    cloud.mfaOff = true;
+    cloud.state = stored({ tasks: [task('c', 'From the cloud', 1)] });
+    await seed(page, null);
+    await page.goto('tasks');
+    await expect(page.getByLabel('Email')).toBeVisible();
+    await expect(page.getByLabel('Authenticator code')).toHaveCount(0);
+    await page.getByLabel('Email').fill(EMAIL);
+    await page.getByPlaceholder('Password').fill('wrong');
+    await unlock(page).click();
+    await expect(page.getByText('Incorrect email or password')).toBeVisible();
+    await page.getByPlaceholder('Password').fill(PASSWORD);
+    await unlock(page).click();
+    await expect(page.getByText('From the cloud')).toBeVisible();
+    expect(cloud.loginBodies.at(-1)).toEqual({ email: EMAIL, password: PASSWORD });
+  });
+
   test('explains when there have been too many attempts', async ({ page }) => {
     cloud.loginAttempts = 5;
     await seed(page, null);
