@@ -105,4 +105,20 @@ describe('POST /api/reminders', () => {
     expect(sendEmail).toHaveBeenCalledTimes(2);
     errors.mockRestore();
   });
+
+  it('gives a reminder back when its push fails, still emails the digest, and fails the run', async () => {
+    const now = seedWithEmail();
+    sendPush.mockRejectedValueOnce(new Error('Vapid private key must be a URL safe Base 64 (without "=")'));
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const failed = await call();
+    expect(failed.status).toBe(502);
+    expect(await failed.json()).toEqual({ due: 1, sent: 0, emailed: 1, error: 'push failed' });
+    expect(redis.has(`ledger:sent:digest:${now.date}`)).toBe(false);
+
+    const retried = await call();
+    expect(retried.status).toBe(200);
+    expect(await retried.json()).toEqual({ due: 1, sent: 1, emailed: 0 });
+    expect(sendPush).toHaveBeenCalledTimes(2);
+    errors.mockRestore();
+  });
 });

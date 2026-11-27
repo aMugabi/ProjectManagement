@@ -1,0 +1,51 @@
+[
+  {
+    "name": "a failed push isn't given back (the reminder is lost for days)",
+    "file": "api/reminders.ts",
+    "find": "await releaseReminder(userId, r.key);",
+    "replace": "void r;",
+    "test": "npx vitest run api/reminders.test.ts"
+  },
+  {
+    "name": "a failed push doesn't fail the run (nobody is told)",
+    "file": "api/reminders.ts",
+    "find": "pushFailed = true;",
+    "replace": "pushFailed = false;",
+    "test": "npx vitest run api/reminders.test.ts"
+  },
+  {
+    "name": "a failed push stops the run before the email digest",
+    "file": "api/reminders.ts",
+    "find": "        pushFailed = true;\n      }",
+    "replace": "        pushFailed = true;\n        throw e;\n      }",
+    "test": "npx vitest run api/reminders.test.ts"
+  },
+  {
+    "name": "padding kept on VAPID keys",
+    "file": "api/_lib/webpush.ts",
+    "find": ".replace(/=+$/, '')",
+    "replace": "",
+    "test": "npx vitest run api/_lib/webpush.test.ts"
+  },
+  {
+    "name": "standard base64 alphabet kept on VAPID keys",
+    "file": "api/_lib/webpush.ts",
+    "find": ".replace(/\\+/g, '-').replace(/\\//g, '_')",
+    "replace": "",
+    "test": "npx vitest run api/_lib/webpush.test.ts"
+  },
+  {
+    "name": "private key used as saved",
+    "file": "api/_lib/webpush.ts",
+    "find": "urlSafeKey(VAPID_PRIVATE_KEY)",
+    "replace": "VAPID_PRIVATE_KEY",
+    "test": "npx vitest run api/_lib/webpush.test.ts"
+  },
+  {
+    "name": "public key handed to browsers as saved",
+    "file": "api/_lib/webpush.ts",
+    "find": "? urlSafeKey(process.env.VAPID_PUBLIC_KEY) :",
+    "replace": "? process.env.VAPID_PUBLIC_KEY :",
+    "test": "npx vitest run api/_lib/webpush.test.ts"
+  }
+]

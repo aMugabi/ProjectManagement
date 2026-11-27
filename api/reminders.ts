@@ -49,6 +49,7 @@ export async function POST(request: Request): Promise<Response> {
   let sent = 0;
   let emailed = 0;
   let emailFailed = false;
+  let pushFailed = false;
   for (const userId of await reminderUsers()) {
     const stored = await readDocument(userId);
     if (!stored) continue;
@@ -62,8 +63,16 @@ export async function POST(request: Request): Promise<Response> {
       // The payload is encrypted to each device, but it is displayed on lock screens: private
       // notifications leave the names out.
       const { title, body } = outsideText(r, state.reminders.privateNotifications);
-      await sendPush({ title, body, tag: r.key, path: r.url }, userId);
-      sent++;
+      try {
+        await sendPush({ title, body, tag: r.key, path: r.url }, userId);
+        sent++;
+      } catch (e) {
+        // Given back, so the next run tries again: claimed and never sent, it would be lost for
+        // days. A bad push setting (such as a malformed key) fails every push this way.
+        await releaseReminder(userId, r.key);
+        console.error('Push failed:', (e as Error).message);
+        pushFailed = true;
+      }
     }
 
     // The morning email digest (if turned on). Claimed like a push, but released if sending fails
@@ -80,8 +89,9 @@ export async function POST(request: Request): Promise<Response> {
       }
     }
   }
-  // A failed email answers 502 (after every user's reminders went out), so the timer's run fails
-  // and GitHub emails the owner instead of the digest just not arriving.
-  if (emailFailed) return Response.json({ due, sent, emailed, error: 'digest email failed' }, { status: 502 });
+  // A failed push or email answers 502 (after every user was tried), so the timer's run fails and
+  // GitHub emails the owner instead of reminders just not arriving.
+  const error = [pushFailed && 'push failed', emailFailed && 'digest email failed'].filter(Boolean).join('; ');
+  if (error) return Response.json({ due, sent, emailed, error }, { status: 502 });
   return Response.json({ due, sent, emailed });
 }

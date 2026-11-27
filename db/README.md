@@ -55,7 +55,8 @@ touch "$SOCK/stop"
 Each run uses its own users, so runs can share one served database. `db/code-breaks.json` (the
 converter), `db/code-breaks-db.json` (reading, writing, the import), `db/code-breaks-step2.json`
 (the Step 2 fields end to end), `db/code-breaks-step3.json` (releases and sign-offs) and
-`db/code-breaks-step4.json` (finish dates, in the app too) break the code on purpose;
+`db/code-breaks-step4.json` (finish dates, in the app too) and `db/code-breaks-push.json` (push
+reminders: key forms and retries) break the code on purpose;
 run them with the skill's `break-code.py` (the second inside the namespace above). Left out as
 shadowed: sync stripping `legacy_*` keys from uploads (each type's schema already refuses unknown
 fields).

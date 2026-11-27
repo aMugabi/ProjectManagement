@@ -11,14 +11,23 @@ export interface PushPayload {
   path: string;
 }
 
+/**
+ * A VAPID key as web-push wants it: URL-safe base64 without padding. A key saved in the standard
+ * alphabet or with a trailing '=' (as some generators print it) is the same bytes, but web-push
+ * refuses it, and every push then fails.
+ */
+export function urlSafeKey(key: string): string {
+  return key.trim().replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 export function vapidPublicKey(): string | null {
-  return process.env.VAPID_PUBLIC_KEY || null;
+  return process.env.VAPID_PUBLIC_KEY ? urlSafeKey(process.env.VAPID_PUBLIC_KEY) : null;
 }
 
 function configured(): boolean {
   const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT } = process.env;
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return false;
-  webpush.setVapidDetails(VAPID_SUBJECT || 'mailto:admin@example.com', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+  webpush.setVapidDetails(VAPID_SUBJECT || 'mailto:admin@example.com', urlSafeKey(VAPID_PUBLIC_KEY), urlSafeKey(VAPID_PRIVATE_KEY));
   return true;
 }
 
